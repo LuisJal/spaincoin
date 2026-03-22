@@ -1,0 +1,22 @@
+# CRÍTICO: nunca subir claves privadas
+docs/claves-fundador.md
+*.key
+*.pem
+.env
+.env.*
+
+# Datos del nodo
+data/
+*.db
+
+# Binarios
+spaincoin
+spc
+/tmp/
+
+# Go
+*.test
+*.out
+
+# macOS
+.DS_Store
