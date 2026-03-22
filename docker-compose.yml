@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  spaincoin-node:
+    build: .
+    container_name: spaincoin-node
+    restart: unless-stopped
+    ports:
+      - "30303:30303"
+      - "8545:8545"
+    volumes:
+      - ./data:/data
+    environment:
+      - SPC_DATA_DIR=/data
+      - SPC_RPC_PORT=8545
+      - SPC_P2P_PORT=30303
+      - SPC_BLOCK_TIME=5
+      - SPC_LOG_LEVEL=info
+      # SPC_VALIDATOR_KEY and SPC_VALIDATOR_ADDRESS loaded from .env file
+    env_file:
+      - .env.node
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8545/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
