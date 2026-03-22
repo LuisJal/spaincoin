@@ -151,14 +151,19 @@ systemctl status spaincoin
 # Ver logs en tiempo real
 journalctl -u spaincoin -f
 
-# Comprobar que la API responde
+# Comprobar que la API responde en local
 curl http://localhost:8545/status
+
+# Comprobar desde fuera (en tu Mac)
+curl http://IP_DEL_SERVIDOR:8545/status
 ```
 
 La API debe responder algo como:
 ```json
-{"status":"ok","height":0,"latest_hash":"...","total_supply":...}
+{"status":"ok","height":19,"latest_hash":"...","total_supply":1019000000000000}
 ```
+
+✅ Si ves esto, el nodo está corriendo y accesible desde internet.
 
 ---
 
