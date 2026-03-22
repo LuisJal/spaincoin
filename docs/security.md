@@ -27,7 +27,26 @@
 - CSP headers en producción (via nginx)
 - Firma de transacciones siempre offline con CLI
 
+## Hardening SSH (pendiente — aplicar antes de mainnet)
+
+En ambos VPS, deshabilitar login por contraseña (solo SSH key):
+```bash
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+systemctl restart ssh
+```
+
+Ver intentos de acceso fallidos:
+```bash
+journalctl -u ssh --since "1 hour ago" | grep "Failed"
+```
+
+> ⚠️ Solo aplicar si tienes la SSH key configurada y funcionando — si la pierdes, te quedas sin acceso.
+
+---
+
 ## Antes del lanzamiento (checklist)
+- [ ] Deshabilitar login SSH por contraseña en VPS 1 y VPS 2
 - [ ] Auditoría externa del código Go
 - [ ] Test de penetración del exchange
 - [ ] HTTPS activo en VPS 2
