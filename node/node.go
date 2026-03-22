@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/spaincoin/spaincoin/core/chain"
 	"github.com/spaincoin/spaincoin/core/consensus"
 	"github.com/spaincoin/spaincoin/core/crypto"
+	"github.com/spaincoin/spaincoin/core/storage"
 )
 
 // Config holds the configuration for a SpainCoin node.
@@ -65,6 +67,7 @@ type Node struct {
 	privKey    *crypto.PrivateKey
 	pubKey     *crypto.PublicKey
 	address    crypto.Address
+	db         *storage.DB
 	stopCh     chan struct{}
 	wg         sync.WaitGroup
 	logger     *log.Logger
@@ -136,13 +139,56 @@ func NewNode(cfg *Config) (*Node, error) {
 	)
 	n.consensus = consensus.NewPoS(vs, blockReward, minStake)
 
-	// --- Blockchain ---
-	genesisAddr := n.address
-	bc, err := chain.NewBlockchain(genesisAddr, cfg.InitialSupply)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create blockchain: %w", err)
+	// --- Storage (optional) ---
+	if cfg.DataDir != "" {
+		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create data dir: %w", err)
+		}
+		db, err := storage.Open(filepath.Join(cfg.DataDir, "chain.db"))
+		if err != nil {
+			return nil, fmt.Errorf("failed to open storage: %w", err)
+		}
+		n.db = db
+
+		storedBlocks, err := db.LoadAllBlocks()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load blocks from disk: %w", err)
+		}
+
+		// Create genesis blockchain first (always needed as the base).
+		bc, err := chain.NewBlockchain(n.address, cfg.InitialSupply)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create blockchain: %w", err)
+		}
+
+		if len(storedBlocks) > 0 {
+			// Replay stored blocks with height > 0 on top of genesis.
+			for _, b := range storedBlocks {
+				if b.Header.Height == 0 {
+					continue // genesis already created above
+				}
+				if err := bc.AddBlock(b); err != nil {
+					return nil, fmt.Errorf("failed to replay block height=%d: %w", b.Header.Height, err)
+				}
+			}
+			logger.Printf("Loaded %d blocks from disk", len(storedBlocks))
+		} else {
+			// No stored blocks: persist the genesis block now.
+			genesis := bc.LatestBlock()
+			if err := db.SaveBlock(genesis); err != nil {
+				return nil, fmt.Errorf("failed to save genesis block: %w", err)
+			}
+		}
+
+		n.chain = bc
+	} else {
+		// In-memory mode: no persistence.
+		bc, err := chain.NewBlockchain(n.address, cfg.InitialSupply)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create blockchain: %w", err)
+		}
+		n.chain = bc
 	}
-	n.chain = bc
 
 	return n, nil
 }
@@ -168,6 +214,11 @@ func (n *Node) Stop() {
 	close(n.stopCh)
 	n.wg.Wait()
 	n.logger.Printf("node stopped at height %d", n.chain.Height())
+	if n.db != nil {
+		if err := n.db.Close(); err != nil {
+			n.logger.Printf("warning: failed to close storage: %v", err)
+		}
+	}
 }
 
 // runBlockProduction is the main loop that produces blocks when this node is
@@ -221,6 +272,12 @@ func (n *Node) tryProduceBlock() error {
 
 	if err := n.chain.AddBlock(newBlock); err != nil {
 		return fmt.Errorf("AddBlock height=%d: %w", nextHeight, err)
+	}
+
+	if n.db != nil {
+		if err := n.db.SaveBlock(newBlock); err != nil {
+			n.logger.Printf("warning: failed to persist block height=%d: %v", newBlock.Header.Height, err)
+		}
 	}
 
 	n.logger.Printf("produced block height=%d hash=%s txs=%d",

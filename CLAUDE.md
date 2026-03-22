@@ -51,9 +51,11 @@ spaincoin/
 | cli/ | ✅ Compila | — |
 | core/network (P2P) | ✅ Completo | 5 |
 | core/storage (BoltDB) | ✅ Completo | 6 |
+| core/wallet | ✅ Completo | 4 |
+| node/rpc (HTTP API) | ✅ Completo | 12 |
 | tests/ integración | ✅ Completo | 7 |
 
-**Total: 69 tests / 69 PASS**
+**Total: 85 tests / 85 PASS**
 
 ## Fases del Proyecto
 
