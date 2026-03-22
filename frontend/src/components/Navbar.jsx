@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useAuth } from '../auth/useAuth.jsx'
 
 const styles = {
   nav: {
@@ -91,6 +92,7 @@ const navItems = [
 
 export default function Navbar({ currentPage, onNavigate }) {
   const [hovered, setHovered] = useState(null)
+  const { user, logout } = useAuth()
 
   function getActivePage(hash) {
     if (hash === '#/' || hash === '' || hash === '#') return '/'
@@ -98,6 +100,19 @@ export default function Navbar({ currentPage, onNavigate }) {
   }
 
   const active = getActivePage(currentPage)
+
+  function handleLogout() {
+    logout()
+    onNavigate('/')
+  }
+
+  // Truncate email for display
+  function truncateEmail(email) {
+    if (!email) return ''
+    const [local, domain] = email.split('@')
+    if (local.length <= 8) return email
+    return local.slice(0, 6) + '...' + (domain ? '@' + domain : '')
+  }
 
   return (
     <nav style={styles.nav}>
@@ -140,10 +155,82 @@ export default function Navbar({ currentPage, onNavigate }) {
         })}
       </ul>
 
-      {/* Live indicator */}
-      <div style={styles.liveIndicator}>
-        <span className="pulse-dot" style={{ fontSize: '0.6rem' }}>●</span>
-        LIVE
+      {/* Right side: auth section */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+        {user ? (
+          // Logged in: show email + wallet icon + logout
+          <>
+            <button
+              onClick={() => onNavigate('/account')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.35rem 0.75rem',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                color: 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                maxWidth: '180px',
+              }}
+              title={user.email}
+            >
+              {/* Wallet icon */}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                <path d="M16 12h.01"/>
+                <path d="M2 10h20"/>
+              </svg>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {truncateEmail(user.email)}
+              </span>
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '0.35rem 0.75rem',
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                color: 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
+              }}
+            >
+              Cerrar sesión
+            </button>
+          </>
+        ) : (
+          // Not logged in: show live indicator + login button
+          <>
+            <div style={styles.liveIndicator}>
+              <span className="pulse-dot" style={{ fontSize: '0.6rem' }}>●</span>
+              LIVE
+            </div>
+            <button
+              onClick={() => onNavigate('/login')}
+              style={{
+                padding: '0.35rem 0.9rem',
+                background: 'transparent',
+                border: '1px solid var(--accent)',
+                borderRadius: '8px',
+                color: 'var(--accent)',
+                fontSize: '0.85rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
+              }}
+            >
+              Entrar
+            </button>
+          </>
+        )}
       </div>
     </nav>
   )

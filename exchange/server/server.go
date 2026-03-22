@@ -9,7 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spaincoin/spaincoin/exchange/auth"
 	"github.com/spaincoin/spaincoin/exchange/client"
+	"github.com/spaincoin/spaincoin/exchange/database"
 	"github.com/spaincoin/spaincoin/exchange/handlers"
 )
 
@@ -96,15 +98,18 @@ type Server struct {
 	nodeURL    string
 	httpServer *http.Server
 	rl         *rateLimiter
+	userDB     *database.UserDB
 }
 
 // NewServer creates a new Server listening on addr and connecting to nodeURL.
-func NewServer(addr, nodeURL string) *Server {
+// userDB may be nil, in which case auth endpoints will not be registered.
+func NewServer(addr, nodeURL string, userDB *database.UserDB) *Server {
 	s := &Server{
 		router:  http.NewServeMux(),
 		addr:    addr,
 		nodeURL: nodeURL,
 		rl:      newRateLimiter(),
+		userDB:  userDB,
 	}
 	s.registerRoutes()
 	return s
@@ -125,6 +130,13 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("/api/market/price", handlers.HandlePrice(nodeClient))
 	mux.HandleFunc("/api/market/stats", handlers.HandleStats(nodeClient))
 	mux.HandleFunc("/health", handleHealth)
+
+	// Auth routes
+	if s.userDB != nil {
+		mux.HandleFunc("/api/auth/register", handlers.HandleRegister(s.userDB))
+		mux.HandleFunc("/api/auth/login", handlers.HandleLogin(s.userDB))
+		mux.HandleFunc("/api/auth/me", auth.AuthMiddleware(handlers.HandleMe(s.userDB, nodeClient)))
+	}
 
 	handler := s.rateLimitMiddleware(
 		securityHeadersMiddleware(

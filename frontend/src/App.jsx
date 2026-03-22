@@ -1,9 +1,18 @@
 import { useState, useEffect } from 'react'
+import { AuthProvider } from './auth/useAuth.jsx'
 import Navbar from './components/Navbar.jsx'
+import Footer from './components/Footer.jsx'
+import CookieBanner from './components/CookieBanner.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Explorer from './pages/Explorer.jsx'
 import BlockDetail from './pages/BlockDetail.jsx'
 import Wallet from './pages/Wallet.jsx'
+import Login from './pages/Login.jsx'
+import Account from './pages/Account.jsx'
+import Terms from './pages/legal/Terms.jsx'
+import Privacy from './pages/legal/Privacy.jsx'
+import Risk from './pages/legal/Risk.jsx'
+import Cookies from './pages/legal/Cookies.jsx'
 
 /**
  * Parse the current window.location.hash into a route object.
@@ -11,7 +20,13 @@ import Wallet from './pages/Wallet.jsx'
  *   #/            → { page: '/' }
  *   #/explorer    → { page: '/explorer' }
  *   #/wallet      → { page: '/wallet' }
+ *   #/login       → { page: '/login' }
+ *   #/account     → { page: '/account' }
  *   #/block/42    → { page: '/block', param: 42 }
+ *   #/legal/terms    → { page: '/legal/terms' }
+ *   #/legal/privacy  → { page: '/legal/privacy' }
+ *   #/legal/risk     → { page: '/legal/risk' }
+ *   #/legal/cookies  → { page: '/legal/cookies' }
  */
 function getPageFromHash() {
   const hash = window.location.hash || '#/'
@@ -25,6 +40,12 @@ function getPageFromHash() {
 
   if (path === '/explorer') return { page: '/explorer' }
   if (path === '/wallet') return { page: '/wallet' }
+  if (path === '/login') return { page: '/login' }
+  if (path === '/account') return { page: '/account' }
+  if (path === '/legal/terms') return { page: '/legal/terms' }
+  if (path === '/legal/privacy') return { page: '/legal/privacy' }
+  if (path === '/legal/risk') return { page: '/legal/risk' }
+  if (path === '/legal/cookies') return { page: '/legal/cookies' }
 
   return { page: '/' }
 }
@@ -33,18 +54,31 @@ function navigate(path) {
   window.location.hash = '#' + path
 }
 
-export default function App() {
+function AppInner() {
   const [route, setRoute] = useState(getPageFromHash)
+  // Keep previous route for back navigation from legal pages
+  const [history, setHistory] = useState([])
 
   useEffect(() => {
     function onHashChange() {
-      setRoute(getPageFromHash())
+      setRoute((prev) => {
+        setHistory((h) => [...h, prev.page])
+        return getPageFromHash()
+      })
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
   function handleNavigate(path) {
+    // Support numeric -1 for "go back"
+    if (path === -1) {
+      const prev = history[history.length - 1]
+      setHistory((h) => h.slice(0, -1))
+      navigate(prev || '/')
+      setRoute(getPageFromHash())
+      return
+    }
     navigate(path)
     setRoute(getPageFromHash())
   }
@@ -59,6 +93,18 @@ export default function App() {
         return <Wallet />
       case '/block':
         return <BlockDetail height={route.param} onNavigate={handleNavigate} />
+      case '/login':
+        return <Login onNavigate={handleNavigate} />
+      case '/account':
+        return <Account onNavigate={handleNavigate} />
+      case '/legal/terms':
+        return <Terms onNavigate={handleNavigate} />
+      case '/legal/privacy':
+        return <Privacy onNavigate={handleNavigate} />
+      case '/legal/risk':
+        return <Risk onNavigate={handleNavigate} />
+      case '/legal/cookies':
+        return <Cookies onNavigate={handleNavigate} />
       default:
         return <Dashboard onNavigate={handleNavigate} />
     }
@@ -70,15 +116,16 @@ export default function App() {
       <main style={{ flex: 1 }}>
         {renderPage()}
       </main>
-      <footer style={{
-        borderTop: '1px solid var(--border)',
-        padding: '1rem 1.5rem',
-        textAlign: 'center',
-        fontSize: '0.75rem',
-        color: 'var(--text-secondary)',
-      }}>
-        SpainCoin Exchange · $SPC · Layer 1 Blockchain · Built with React + Vite
-      </footer>
+      <Footer onNavigate={handleNavigate} />
+      <CookieBanner onNavigate={handleNavigate} />
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   )
 }

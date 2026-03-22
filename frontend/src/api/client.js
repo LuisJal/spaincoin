@@ -39,3 +39,36 @@ export async function sendTx(txData) {
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
   return res.json()
 }
+
+export async function register(email, password, importKey) {
+  const body = { email, password }
+  if (importKey) body.import_key = importKey
+  const res = await fetch(`${API_BASE}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Error en el registro')
+  return data // {token, address, email}
+}
+
+export async function login(email, password) {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Email o contraseña incorrectos')
+  return data
+}
+
+export async function getMe(token) {
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Sesión expirada')
+  return data
+}
