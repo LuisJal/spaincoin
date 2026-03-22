@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/spaincoin/spaincoin/core/consensus"
 	"github.com/spaincoin/spaincoin/core/crypto"
 	"github.com/spaincoin/spaincoin/core/storage"
+	"github.com/spaincoin/spaincoin/node/rpc"
 )
 
 // Config holds the configuration for a SpainCoin node.
@@ -68,6 +70,7 @@ type Node struct {
 	pubKey     *crypto.PublicKey
 	address    crypto.Address
 	db         *storage.DB
+	rpcServer  *rpc.Server
 	stopCh     chan struct{}
 	wg         sync.WaitGroup
 	logger     *log.Logger
@@ -193,11 +196,18 @@ func NewNode(cfg *Config) (*Node, error) {
 	return n, nil
 }
 
-// Start launches the block-production loop in a background goroutine.
+// Start launches the block-production loop and the RPC server.
 // Returns immediately; use Stop to shut down.
 func (n *Node) Start() error {
-	n.logger.Printf("node started (validator=%s, blockTime=%ds, rpc=:%d)",
-		n.address.String(), n.config.BlockTime, n.config.RPCPort)
+	// Start RPC server
+	addr := fmt.Sprintf(":%d", n.config.RPCPort)
+	n.rpcServer = rpc.NewServer(n.chain, addr)
+	if err := n.rpcServer.Start(); err != nil {
+		return fmt.Errorf("failed to start RPC server: %w", err)
+	}
+
+	n.logger.Printf("node started (validator=%s, blockTime=%ds, rpc=%s)",
+		n.address.String(), n.config.BlockTime, addr)
 
 	n.wg.Add(1)
 	go func() {
@@ -213,6 +223,11 @@ func (n *Node) Start() error {
 func (n *Node) Stop() {
 	close(n.stopCh)
 	n.wg.Wait()
+	if n.rpcServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = n.rpcServer.Stop(ctx)
+	}
 	n.logger.Printf("node stopped at height %d", n.chain.Height())
 	if n.db != nil {
 		if err := n.db.Close(); err != nil {
