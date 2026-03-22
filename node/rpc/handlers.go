@@ -46,16 +46,9 @@ type blockJSON struct {
 // Helpers
 // ---------------------------------------------------------------------------
 
-// setCORSHeaders adds the CORS headers required by the React exchange app.
-func setCORSHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-}
-
 // writeJSON serialises v as JSON, sets Content-Type and the given HTTP status.
+// CORS and security headers are applied by the server-level middleware.
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
-	setCORSHeaders(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
@@ -98,23 +91,14 @@ func blockToJSON(b *block.Block) blockJSON {
 	}
 }
 
-// handleOptions responds to pre-flight OPTIONS requests with CORS headers.
-func handleOptions(w http.ResponseWriter, _ *http.Request) {
-	setCORSHeaders(w)
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // ---------------------------------------------------------------------------
 // Handlers
+// OPTIONS pre-flight is handled upstream by the security middleware.
 // ---------------------------------------------------------------------------
 
 // handleStatus serves GET /status.
 func handleStatus(bc *chain.Blockchain) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handleOptions(w, r)
-			return
-		}
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
@@ -137,10 +121,6 @@ func handleStatus(bc *chain.Blockchain) http.HandlerFunc {
 // The mux is registered at "/block/" so we parse the suffix ourselves.
 func handleBlock(bc *chain.Blockchain) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handleOptions(w, r)
-			return
-		}
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
@@ -174,10 +154,6 @@ func handleBlock(bc *chain.Blockchain) http.HandlerFunc {
 // handleLatestBlock serves GET /block/latest.
 func handleLatestBlock(bc *chain.Blockchain) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handleOptions(w, r)
-			return
-		}
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
@@ -192,10 +168,6 @@ func handleLatestBlock(bc *chain.Blockchain) http.HandlerFunc {
 // The mux is registered at "/address/" so we parse the path ourselves.
 func handleBalance(bc *chain.Blockchain) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handleOptions(w, r)
-			return
-		}
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
@@ -248,10 +220,6 @@ type sendTxRequest struct {
 // handleSendTx serves POST /tx/send.
 func handleSendTx(bc *chain.Blockchain) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handleOptions(w, r)
-			return
-		}
 		if r.Method != http.MethodPost {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
@@ -321,10 +289,6 @@ func handleSendTx(bc *chain.Blockchain) http.HandlerFunc {
 // Note: "/tx/send" is registered separately and takes precedence for that exact path.
 func handleGetTx(bc *chain.Blockchain) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handleOptions(w, r)
-			return
-		}
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
@@ -371,10 +335,6 @@ func handleGetTx(bc *chain.Blockchain) http.HandlerFunc {
 // handleValidators serves GET /validators.
 func handleValidators(bc *chain.Blockchain) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodOptions {
-			handleOptions(w, r)
-			return
-		}
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return

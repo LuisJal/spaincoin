@@ -13,7 +13,11 @@
       "Bash(mkdir:*)",
       "Bash(ls:*)",
       "Bash(find:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   },
@@ -24,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/luison/Documents/spaincoin && go fmt ./... 2>/dev/null; go vet ./... 2>&1 | head -20"
+            "command": "cd /Users/luison/Documents/spaincoin && go fmt ./... 2>/dev/null; go vet ./... 2>&1 | head -10"
           }
         ]
       }

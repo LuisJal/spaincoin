@@ -55,16 +55,20 @@ spaincoin/
 | node/rpc (HTTP API) | ✅ Completo | 12 |
 | tests/ integración | ✅ Completo | 7 |
 
+| exchange/ (Go API) | ✅ Compila | — |
+| frontend/ (React) | ✅ Compila | — |
+
 **Total: 85 tests / 85 PASS**
 
 ## Fases del Proyecto
 
-- [x] **Fase 1** - Core blockchain (bloques, transacciones, consenso básico, nodo, CLI)
+- [x] **Fase 1** - Core blockchain (bloques, transacciones, consenso básico)
 - [x] **Fase 2** - Red P2P (múltiples nodos comunicándose con libp2p)
-- [ ] **Fase 3** - Wallet avanzada + persistencia en disco
-- [ ] **Fase 4** - Testnet pública
-- [ ] **Fase 5** - Exchange app (React + Go API)
-- [ ] **Fase 6** - Mainnet
+- [x] **Fase 3** - Wallet + CLI + persistencia
+- [x] **Fase 4** - Testnet infra (VPS Hetzner, nodo en producción 24/7)
+- [ ] **Fase 5** - Exchange App (React + Go API) ← EN PROGRESO
+- [ ] **Fase 6** - Deploy Exchange (VPS 2 + dominio + HTTPS)
+- [ ] **Fase 7** - Mainnet
 
 ## Convenciones de Código
 - Go: `gofmt` + `go vet` (se ejecutan automáticamente via hooks tras cada edición)
