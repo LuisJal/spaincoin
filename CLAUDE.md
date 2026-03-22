@@ -24,7 +24,7 @@ spaincoin/
 │   ├── consensus/         # ✅ PoS: selección validadores, slashing
 │   ├── crypto/            # ✅ ECDSA keys, SHA-256, Address SPC...
 │   ├── mempool/           # ✅ Pool de transacciones pendientes
-│   ├── network/           # 🔄 P2P networking (libp2p) — pendiente
+│   ├── network/           # ✅ P2P networking (libp2p, gossipsub, mDNS)
 │   ├── state/             # ✅ Estado global (balances, cuentas)
 │   └── wallet/            # 📋 Gestión de wallets — pendiente
 ├── node/                  # ✅ Nodo ejecutable (produce bloques)
@@ -49,15 +49,15 @@ spaincoin/
 | core/consensus | ✅ Completo | 10 |
 | node/ | ✅ Compila | — |
 | cli/ | ✅ Compila | — |
-| core/network (P2P) | 🔄 Pendiente | — |
+| core/network (P2P) | ✅ Completo | 5 |
 | tests/ integración | 🔄 Pendiente | — |
 
-**Total: 51 tests / 51 PASS**
+**Total: 56 tests / 56 PASS**
 
 ## Fases del Proyecto
 
 - [x] **Fase 1** - Core blockchain (bloques, transacciones, consenso básico, nodo, CLI)
-- [ ] **Fase 2** - Red P2P (múltiples nodos comunicándose con libp2p)
+- [x] **Fase 2** - Red P2P (múltiples nodos comunicándose con libp2p)
 - [ ] **Fase 3** - Wallet avanzada + persistencia en disco
 - [ ] **Fase 4** - Testnet pública
 - [ ] **Fase 5** - Exchange app (React + Go API)
