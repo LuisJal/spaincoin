@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+// En desarrollo: VITE_API_URL=http://localhost:3001 (vite proxy)
+// En producción: vacío → rutas relativas /api/... que nginx proxya
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}${path}`)
