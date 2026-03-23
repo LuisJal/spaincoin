@@ -1,38 +1,21 @@
 import { useState, useEffect } from 'react'
-import { AuthProvider } from './auth/useAuth.jsx'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import CookieBanner from './components/CookieBanner.jsx'
-import Dashboard from './pages/Dashboard.jsx'
+import Landing from './pages/Landing.jsx'
 import Explorer from './pages/Explorer.jsx'
 import BlockDetail from './pages/BlockDetail.jsx'
-import Wallet from './pages/Wallet.jsx'
-import Login from './pages/Login.jsx'
-import Account from './pages/Account.jsx'
-import Trade from './pages/Trade.jsx'
-import Market from './pages/Market.jsx'
+import MarketInfo from './pages/MarketInfo.jsx'
+import WalletDownload from './pages/WalletDownload.jsx'
+import Validators from './pages/Validators.jsx'
+import WhitePaper from './pages/WhitePaper.jsx'
 import Terms from './pages/legal/Terms.jsx'
 import Privacy from './pages/legal/Privacy.jsx'
 import Risk from './pages/legal/Risk.jsx'
 import Cookies from './pages/legal/Cookies.jsx'
 
-/**
- * Parse the current window.location.hash into a route object.
- * Supported hashes:
- *   #/            → { page: '/' }
- *   #/explorer    → { page: '/explorer' }
- *   #/wallet      → { page: '/wallet' }
- *   #/login       → { page: '/login' }
- *   #/account     → { page: '/account' }
- *   #/block/42    → { page: '/block', param: 42 }
- *   #/legal/terms    → { page: '/legal/terms' }
- *   #/legal/privacy  → { page: '/legal/privacy' }
- *   #/legal/risk     → { page: '/legal/risk' }
- *   #/legal/cookies  → { page: '/legal/cookies' }
- */
 function getPageFromHash() {
   const hash = window.location.hash || '#/'
-  // strip leading #
   const path = hash.startsWith('#') ? hash.slice(1) : hash
 
   if (!path || path === '/') return { page: '/' }
@@ -41,13 +24,10 @@ function getPageFromHash() {
   if (blockMatch) return { page: '/block', param: Number(blockMatch[1]) }
 
   if (path === '/explorer') return { page: '/explorer' }
-  const tradeMatch = path.match(/^\/trade\/([A-Z]+)$/)
-  if (tradeMatch) return { page: '/trade', param: tradeMatch[1] }
-  if (path === '/trade') return { page: '/trade', param: 'SPC' }
   if (path === '/market') return { page: '/market' }
   if (path === '/wallet') return { page: '/wallet' }
-  if (path === '/login') return { page: '/login' }
-  if (path === '/account') return { page: '/account' }
+  if (path === '/validators') return { page: '/validators' }
+  if (path === '/whitepaper') return { page: '/whitepaper' }
   if (path === '/legal/terms') return { page: '/legal/terms' }
   if (path === '/legal/privacy') return { page: '/legal/privacy' }
   if (path === '/legal/risk') return { page: '/legal/risk' }
@@ -60,9 +40,8 @@ function navigate(path) {
   window.location.hash = '#' + path
 }
 
-function AppInner() {
+export default function App() {
   const [route, setRoute] = useState(getPageFromHash)
-  // Keep previous route for back navigation from legal pages
   const [history, setHistory] = useState([])
 
   useEffect(() => {
@@ -77,7 +56,6 @@ function AppInner() {
   }, [])
 
   function handleNavigate(path) {
-    // Support numeric -1 for "go back"
     if (path === -1) {
       const prev = history[history.length - 1]
       setHistory((h) => h.slice(0, -1))
@@ -92,21 +70,19 @@ function AppInner() {
   function renderPage() {
     switch (route.page) {
       case '/':
-        return <Dashboard onNavigate={handleNavigate} />
+        return <Landing onNavigate={handleNavigate} />
       case '/explorer':
         return <Explorer onNavigate={handleNavigate} />
-      case '/trade':
-        return <Trade symbol={route.param || 'SPC'} onNavigate={handleNavigate} />
-      case '/market':
-        return <Market onNavigate={handleNavigate} />
-      case '/wallet':
-        return <Wallet onNavigate={handleNavigate} />
       case '/block':
         return <BlockDetail height={route.param} onNavigate={handleNavigate} />
-      case '/login':
-        return <Login onNavigate={handleNavigate} />
-      case '/account':
-        return <Account onNavigate={handleNavigate} />
+      case '/market':
+        return <MarketInfo onNavigate={handleNavigate} />
+      case '/wallet':
+        return <WalletDownload onNavigate={handleNavigate} />
+      case '/validators':
+        return <Validators onNavigate={handleNavigate} />
+      case '/whitepaper':
+        return <WhitePaper onNavigate={handleNavigate} />
       case '/legal/terms':
         return <Terms onNavigate={handleNavigate} />
       case '/legal/privacy':
@@ -116,7 +92,7 @@ function AppInner() {
       case '/legal/cookies':
         return <Cookies onNavigate={handleNavigate} />
       default:
-        return <Dashboard onNavigate={handleNavigate} />
+        return <Landing onNavigate={handleNavigate} />
     }
   }
 
@@ -129,13 +105,5 @@ function AppInner() {
       <Footer onNavigate={handleNavigate} />
       <CookieBanner onNavigate={handleNavigate} />
     </div>
-  )
-}
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
   )
 }
