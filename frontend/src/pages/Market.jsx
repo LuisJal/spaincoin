@@ -117,37 +117,24 @@ export default function Market({ onNavigate }) {
           </h2>
         </div>
 
-        {/* Table header */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr 1.5fr 2fr 1fr',
-          padding: '0.6rem 1.25rem', fontSize: '0.7rem', color: 'var(--text-secondary)',
-          textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)',
-        }}>
-          <span>Token</span>
-          <span style={{ textAlign: 'right' }}>Precio</span>
-          <span style={{ textAlign: 'right' }}>24h</span>
-          <span style={{ textAlign: 'right' }}>Volumen</span>
-          <span style={{ textAlign: 'center' }}>Grafico 24h</span>
-          <span style={{ textAlign: 'right' }}>Operar</span>
-        </div>
-
-        {/* Token rows */}
+        {/* Token rows — mobile-friendly card layout */}
         {tokens.map((t, i) => {
           const changeColor = t.change_24h >= 0 ? 'var(--green)' : 'var(--red)'
           return (
             <div
               key={t.symbol}
+              onClick={() => onNavigate(`/trade/${t.symbol}`)}
               style={{
-                display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr 1.5fr 2fr 1fr',
-                padding: '1rem 1.25rem', alignItems: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.9rem 1.25rem', gap: '0.75rem',
                 borderBottom: i < tokens.length - 1 ? '1px solid var(--border)' : 'none',
                 cursor: 'pointer', transition: 'background 0.15s',
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
-              {/* Token name */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              {/* Left: icon + name */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
                 <div style={{
                   width: '36px', height: '36px', borderRadius: '50%',
                   background: (coinColors[t.symbol] || coinColors.SPC).bg,
@@ -157,44 +144,25 @@ export default function Market({ onNavigate }) {
                 }}>
                   {t.symbol.slice(0, 1)}
                 </div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{t.symbol}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{t.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</div>
                 </div>
               </div>
 
-              {/* Price */}
-              <div style={{ textAlign: 'right', fontWeight: '600', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                {formatEUR(t.price)}
+              {/* Center: mini chart — hidden on small screens via className */}
+              <div className="market-chart" style={{ flexShrink: 0 }}>
+                <PriceChart data={generateMiniData(t.price, t.change_24h, i)} width={100} height={36} color={changeColor} />
               </div>
 
-              {/* 24h change */}
-              <div style={{ textAlign: 'right', fontWeight: '600', fontSize: '0.85rem', color: changeColor }}>
-                {t.change_24h >= 0 ? '+' : ''}{t.change_24h}%
-              </div>
-
-              {/* Volume */}
-              <div style={{ textAlign: 'right', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {formatEUR(t.volume)}
-              </div>
-
-              {/* Mini chart — generated per coin */}
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <PriceChart data={generateMiniData(t.price, t.change_24h, i)} width={120} height={40} color={changeColor} />
-              </div>
-
-              {/* Trade button */}
-              <div style={{ textAlign: 'right' }}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onNavigate(`/trade/${t.symbol}`) }}
-                  style={{
-                    padding: '0.35rem 0.75rem', borderRadius: '6px', border: 'none',
-                    background: 'var(--accent)', color: '#fff', fontSize: '0.75rem',
-                    fontWeight: '600', cursor: 'pointer',
-                  }}
-                >
-                  Operar
-                </button>
+              {/* Right: price + change */}
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                  {formatEUR(t.price)}
+                </div>
+                <div style={{ fontWeight: '600', fontSize: '0.75rem', color: changeColor, whiteSpace: 'nowrap' }}>
+                  {t.change_24h >= 0 ? '+' : ''}{t.change_24h}%
+                </div>
               </div>
             </div>
           )

@@ -144,6 +144,7 @@ code, .mono {
   .desktop-nav  { display: none !important; }
   .desktop-auth { display: none !important; }
   .hamburger    { display: flex !important; }
+  .market-chart { display: none !important; }
 }
 
 /* Spinner */
