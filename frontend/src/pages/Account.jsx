@@ -196,10 +196,10 @@ export default function Account({ onNavigate }) {
             border: '1px solid var(--border)',
           }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Balance SPC</div>
-            <div style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-              {Number(exchangeSPC ?? balance).toLocaleString('es-ES', { maximumFractionDigits: 4 })}
-              <span style={{ fontSize: '0.8rem', color: 'var(--accent)', marginLeft: '0.3rem', fontWeight: '500' }}>SPC</span>
+            <div style={{ fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+              {Number(exchangeSPC ?? balance).toLocaleString('es-ES', { maximumFractionDigits: 2 })}
             </div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: '500' }}>SPC</div>
           </div>
           <div style={{
             flex: 1,

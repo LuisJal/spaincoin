@@ -163,47 +163,41 @@ export default function Wallet({ onNavigate }) {
           </div>
         ) : (
           portfolio.holdings.map((h, i) => (
-            <div key={h.symbol} style={{
-              display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr',
-              padding: '1rem 1.25rem', alignItems: 'center',
-              borderBottom: i < portfolio.holdings.length - 1 ? '1px solid var(--border)' : 'none',
-            }}>
-              {/* Coin */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div key={h.symbol}
+              onClick={() => onNavigate(`/trade/${h.symbol}`)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.9rem 1.25rem', gap: '0.75rem',
+                borderBottom: i < portfolio.holdings.length - 1 ? '1px solid var(--border)' : 'none',
+                cursor: 'pointer', transition: 'background 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              {/* Left: icon + name + amount */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
                 <div style={{
                   width: '36px', height: '36px', borderRadius: '50%',
                   background: coinColors[h.symbol] || '#666',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontWeight: '700', fontSize: '0.7rem', color: '#fff', flexShrink: 0,
                 }}>{h.symbol.slice(0, 1)}</div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{h.symbol}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{h.name}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                    {formatAmount(h.amount, h.symbol)} {h.symbol}
+                  </div>
                 </div>
               </div>
 
-              {/* Amount */}
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                  {formatAmount(h.amount, h.symbol)}
+              {/* Right: value in EUR */}
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                  {formatEUR(h.value_eur)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                  Precio: {formatEUR(h.price)}
+                  {formatEUR(h.price)}/{h.symbol}
                 </div>
-              </div>
-
-              {/* Value */}
-              <div style={{ textAlign: 'right', fontWeight: '600', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                {formatEUR(h.value_eur)}
-              </div>
-
-              {/* Action */}
-              <div style={{ textAlign: 'right' }}>
-                <button onClick={() => onNavigate(`/trade/${h.symbol}`)} style={{
-                  padding: '0.3rem 0.65rem', borderRadius: '6px', border: 'none',
-                  background: 'var(--accent)', color: '#fff', fontSize: '0.75rem',
-                  fontWeight: '600', cursor: 'pointer',
-                }}>Operar</button>
               </div>
             </div>
           ))
