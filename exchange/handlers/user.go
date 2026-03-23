@@ -58,7 +58,7 @@ type authResponse struct {
 }
 
 // HandleRegister handles POST /api/auth/register.
-func HandleRegister(userDB *database.UserDB) http.HandlerFunc {
+func HandleRegister(userDB *database.UserDB, tradeDB *database.TradeDB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := clientIPFromRequest(r)
 
@@ -148,6 +148,13 @@ func HandleRegister(userDB *database.UserDB) http.HandlerFunc {
 			log.Printf("[ERROR] register jwt email=%s: %v", req.Email, err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
+		}
+
+		// Initialize testnet EUR balance (1000€ de regalo)
+		if tradeDB != nil {
+			if err := tradeDB.InitUserBalance(record.ID, 1000.0); err != nil {
+				log.Printf("[WARN] register init EUR balance email=%s: %v", req.Email, err)
+			}
 		}
 
 		log.Printf("[AUDIT] register success email=%s ip=%s address=%s", req.Email, ip, address)

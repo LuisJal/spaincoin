@@ -13,6 +13,7 @@ import (
 	"github.com/spaincoin/spaincoin/exchange/client"
 	"github.com/spaincoin/spaincoin/exchange/database"
 	"github.com/spaincoin/spaincoin/exchange/handlers"
+	"github.com/spaincoin/spaincoin/exchange/market"
 )
 
 // ---------------------------------------------------------------------------
@@ -99,17 +100,18 @@ type Server struct {
 	httpServer *http.Server
 	rl         *rateLimiter
 	userDB     *database.UserDB
+	tradeDB    *database.TradeDB
 }
 
 // NewServer creates a new Server listening on addr and connecting to nodeURL.
-// userDB may be nil, in which case auth endpoints will not be registered.
-func NewServer(addr, nodeURL string, userDB *database.UserDB) *Server {
+func NewServer(addr, nodeURL string, userDB *database.UserDB, tradeDB *database.TradeDB) *Server {
 	s := &Server{
 		router:  http.NewServeMux(),
 		addr:    addr,
 		nodeURL: nodeURL,
 		rl:      newRateLimiter(),
 		userDB:  userDB,
+		tradeDB: tradeDB,
 	}
 	s.registerRoutes()
 	return s
@@ -118,6 +120,7 @@ func NewServer(addr, nodeURL string, userDB *database.UserDB) *Server {
 // registerRoutes sets up all API routes.
 func (s *Server) registerRoutes() {
 	nodeClient := client.NewNodeClient(s.nodeURL)
+	sim := market.NewSimulator(0.09) // base price: €0.09
 
 	mux := s.router
 
@@ -127,15 +130,26 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("/api/explorer", handlers.HandleExplorer(nodeClient))
 	mux.HandleFunc("/api/wallet/send", handlers.HandleSend(nodeClient))
 	mux.HandleFunc("/api/wallet/", handlers.HandleWallet(nodeClient))
-	mux.HandleFunc("/api/market/price", handlers.HandlePrice(nodeClient))
-	mux.HandleFunc("/api/market/stats", handlers.HandleStats(nodeClient))
+	mux.HandleFunc("/api/market/price", handlers.HandlePrice(nodeClient, sim))
+	mux.HandleFunc("/api/market/stats", handlers.HandleStats(nodeClient, sim))
+	mux.HandleFunc("/api/market/history", handlers.HandlePriceHistory(nodeClient, sim))
+	mux.HandleFunc("/api/market/ticker", handlers.HandleTicker(nodeClient, sim))
+	mux.HandleFunc("/api/market/table", handlers.HandleMarketTable(nodeClient, sim))
 	mux.HandleFunc("/health", handleHealth)
 
 	// Auth routes
 	if s.userDB != nil {
-		mux.HandleFunc("/api/auth/register", handlers.HandleRegister(s.userDB))
+		mux.HandleFunc("/api/auth/register", handlers.HandleRegister(s.userDB, s.tradeDB))
 		mux.HandleFunc("/api/auth/login", handlers.HandleLogin(s.userDB))
 		mux.HandleFunc("/api/auth/me", auth.AuthMiddleware(handlers.HandleMe(s.userDB, nodeClient)))
+	}
+
+	// Trading routes (auth required)
+	if s.userDB != nil && s.tradeDB != nil {
+		mux.HandleFunc("/api/trade/buy", auth.AuthMiddleware(handlers.HandleBuy(nodeClient, sim, s.userDB, s.tradeDB)))
+		mux.HandleFunc("/api/trade/sell", auth.AuthMiddleware(handlers.HandleSell(nodeClient, sim, s.userDB, s.tradeDB)))
+		mux.HandleFunc("/api/trade/history", auth.AuthMiddleware(handlers.HandleTradeHistory(s.tradeDB)))
+		mux.HandleFunc("/api/trade/balance", auth.AuthMiddleware(handlers.HandleTradeBalance(nodeClient, s.userDB, s.tradeDB)))
 	}
 
 	handler := s.rateLimitMiddleware(

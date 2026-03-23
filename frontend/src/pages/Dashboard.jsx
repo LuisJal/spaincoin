@@ -105,7 +105,7 @@ export default function Dashboard({ onNavigate }) {
         {/* CTAs */}
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button
-            onClick={() => onNavigate('/wallet')}
+            onClick={() => onNavigate('/trade')}
             style={{
               background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
               color: '#fff', border: 'none', borderRadius: '12px',

@@ -45,7 +45,12 @@ func main() {
 		log.Fatalf("init user db: %v", err)
 	}
 
-	srv := server.NewServer(":"+port, nodeURL, userDB)
+	tradeDB, err := database.NewTradeDB(boltDB)
+	if err != nil {
+		log.Fatalf("init trade db: %v", err)
+	}
+
+	srv := server.NewServer(":"+port, nodeURL, userDB, tradeDB)
 
 	log.Printf("SpainCoin Exchange API starting on :%s", port)
 	log.Printf("Connected to node: %s", nodeURL)

@@ -159,4 +159,112 @@ Esto se llama **emisión controlada** — la cantidad de nuevos SPC que entran a
 
 ---
 
-*Última actualización: 2026-03-22 — Fase 1 completada, nodo corriendo en producción*
+---
+
+## La matemática real — Exchange y dinero del fundador
+
+### Estado actual de la blockchain
+
+El nodo está produciendo bloques cada 5 segundos. Cada bloque genera 1 SPC de recompensa (1.000.000.000.000.000 pesetas). El suministro inicial fue de 1.000 SPC repartido en 3 wallets:
+
+| Wallet | Concepto | SPC iniciales |
+|--------|----------|---------------|
+| Wallet A (validador) | Fundador — la que valida bloques | ~334 SPC |
+| Wallet B | Fundador — reserva | ~333 SPC |
+| Wallet C | Fundador — reserva | ~333 SPC |
+
+El validador (Wallet A) además acumula +1 SPC por bloque. Si lleva 7.000 bloques, tiene ~7.334 SPC.
+
+### ¿Cuánto dinero real necesitas meter?
+
+**Respuesta corta: 0€ al principio.**
+
+En testnet no hay dinero real. Cuando pases a mainnet:
+
+| Concepto | Coste | Cuándo |
+|----------|-------|--------|
+| Servidores (2x VPS) | ~16€/mes | Ya lo estás pagando |
+| Dominio spaincoin.es | ~8€/año | Ya lo has pagado |
+| Constitución SL | ~1.500-2.000€ | Antes de mainnet |
+| Registro PSAV | ~600€ tasa | Antes de mainnet |
+| KYC/AML (Sumsub) | ~0.50€/verificación | Al empezar a operar |
+| **Total para arrancar** | **~2.500-3.000€** | |
+
+### ¿Cómo funciona el exchange por dentro?
+
+```
+USUARIO quiere comprar 100 SPC
+         │
+         ▼
+1. El exchange mira el precio actual: 0,09€/SPC
+2. Calcula: 100 × 0,09 = 9,00€
+3. El usuario paga 9€ (con su balance EUR en la plataforma)
+4. El exchange transfiere 100 SPC al wallet del usuario
+5. El exchange recibe los 9€
+```
+
+### ¿De dónde salen los SPC que compra la gente?
+
+De **tu wallet de liquidez**. Tú pones SPC disponibles en el exchange, y la gente te compra a ti. Cuando alguien compra 100 SPC a 0,09€:
+
+- Tú pierdes 100 SPC
+- Tú ganas 9€
+- El usuario gana 100 SPC
+
+Cuando alguien vende 100 SPC a 0,09€:
+
+- Tú ganas 100 SPC
+- Tú pierdes 9€
+- El usuario gana 9€
+
+**Tú eres el "market maker"** — el que pone liquidez en ambos lados.
+
+### Ejemplo con números reales
+
+**Arranque:**
+- Pones 200.000 SPC a precio de 0,10€
+- Eso representa 20.000€ en "valor" de SPC
+
+**Escenario: 500 personas compran 20€ cada una en el primer mes:**
+- Se venden 100.000 SPC (500 × 200 SPC a 0,10€)
+- Tú recibes 10.000€ reales
+- Te quedan 100.000 SPC de liquidez
+- Como hay menos SPC disponibles y más demanda → el precio sube
+
+**El precio ahora es 0,15€:**
+- Tus 100.000 SPC restantes valen 15.000€
+- Más los 10.000€ que ya recibiste
+- Total: 25.000€ (empezaste con 0€ de inversión en SPC)
+
+**¿Suena demasiado bien? Es la misma matemática que Bitcoin en 2010.**
+Pero también puede ir al revés: si nadie quiere comprar, tu SPC vale 0.
+
+### El escenario peligroso (sé honesto contigo mismo)
+
+Si el exchange no genera tracción:
+- Los SPC no valen nada
+- Has gastado ~3.000€ en la SL + servidores
+- Has invertido tu tiempo
+
+Es un riesgo real. Por eso el marketing es TU trabajo más importante.
+
+### Resumen para el fundador
+
+```
+LO QUE TIENES:                    LO QUE NECESITAS:
+─────────────────                  ──────────────────
+~1.000 SPC (génesis)               Marketing (tu trabajo)
++ ~7.000 SPC (recompensas)         ~3.000€ para arrancar legal
+= ~8.000 SPC total                 Paciencia (6-12 meses)
+
+Si precio = 0,10€ → valen 800€
+Si precio = 1€    → valen 8.000€
+Si precio = 10€   → valen 80.000€
+Si precio = 100€  → valen 800.000€
+```
+
+Los 200.000 SPC de liquidez los crearás en la génesis del mainnet. En testnet son simulados.
+
+---
+
+*Última actualización: 2026-03-23 — Exchange en producción, Trading funcional en testnet*

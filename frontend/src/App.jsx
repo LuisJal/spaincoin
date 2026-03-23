@@ -9,6 +9,8 @@ import BlockDetail from './pages/BlockDetail.jsx'
 import Wallet from './pages/Wallet.jsx'
 import Login from './pages/Login.jsx'
 import Account from './pages/Account.jsx'
+import Trade from './pages/Trade.jsx'
+import Market from './pages/Market.jsx'
 import Terms from './pages/legal/Terms.jsx'
 import Privacy from './pages/legal/Privacy.jsx'
 import Risk from './pages/legal/Risk.jsx'
@@ -39,6 +41,8 @@ function getPageFromHash() {
   if (blockMatch) return { page: '/block', param: Number(blockMatch[1]) }
 
   if (path === '/explorer') return { page: '/explorer' }
+  if (path === '/trade') return { page: '/trade' }
+  if (path === '/market') return { page: '/market' }
   if (path === '/wallet') return { page: '/wallet' }
   if (path === '/login') return { page: '/login' }
   if (path === '/account') return { page: '/account' }
@@ -89,6 +93,10 @@ function AppInner() {
         return <Dashboard onNavigate={handleNavigate} />
       case '/explorer':
         return <Explorer onNavigate={handleNavigate} />
+      case '/trade':
+        return <Trade onNavigate={handleNavigate} />
+      case '/market':
+        return <Market onNavigate={handleNavigate} />
       case '/wallet':
         return <Wallet />
       case '/block':
