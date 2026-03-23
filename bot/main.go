@@ -17,32 +17,51 @@ import (
 	"github.com/spaincoin/spaincoin/exchange/database"
 )
 
-// Telegram Bot API base URL.
 const telegramAPI = "https://api.telegram.org/bot"
 
 var (
-	botToken  string
-	adminChat int64 // Your Telegram chat ID (admin)
-	orderDB   *database.OrderDB
-	bizumInfo string // Bizum phone number for payments
+	botToken   string
+	orderDB    *database.OrderDB
+	adminIDs   map[int64]string // chatID -> role ("super" or "admin")
+	bankInfo   string           // IBAN or payment info
+	priceTiers []priceTier      // automatic pricing
 )
 
-// TelegramUpdate represents an incoming update from Telegram.
+type priceTier struct {
+	SoldUpTo float64
+	Price    float64
+}
+
+// Default price tiers — override with /settiers
+var defaultTiers = []priceTier{
+	{500, 0.05},
+	{1000, 0.08},
+	{2500, 0.12},
+	{5000, 0.18},
+	{10000, 0.25},
+	{25000, 0.40},
+	{50000, 0.70},
+	{100000, 1.00},
+	{500000, 2.00},
+	{1000000, 5.00},
+}
+
+// ==========================================
+// Telegram types
+// ==========================================
+
 type TelegramUpdate struct {
 	UpdateID int64            `json:"update_id"`
 	Message  *TelegramMessage `json:"message"`
 }
 
-// TelegramMessage represents a Telegram message.
 type TelegramMessage struct {
 	MessageID int64         `json:"message_id"`
 	From      *TelegramUser `json:"from"`
 	Chat      *TelegramChat `json:"chat"`
 	Text      string        `json:"text"`
-	Date      int64         `json:"date"`
 }
 
-// TelegramUser represents a Telegram user.
 type TelegramUser struct {
 	ID        int64  `json:"id"`
 	FirstName string `json:"first_name"`
@@ -50,7 +69,6 @@ type TelegramUser struct {
 	Username  string `json:"username"`
 }
 
-// TelegramChat represents a Telegram chat.
 type TelegramChat struct {
 	ID   int64  `json:"id"`
 	Type string `json:"type"`
@@ -62,14 +80,39 @@ func main() {
 		log.Fatal("SPC_BOT_TOKEN required")
 	}
 
-	adminStr := os.Getenv("SPC_ADMIN_CHAT_ID")
+	// Parse admin IDs: "123:super,456:admin,789:admin"
+	adminIDs = make(map[int64]string)
+	adminStr := os.Getenv("SPC_ADMIN_IDS")
 	if adminStr != "" {
-		adminChat, _ = strconv.ParseInt(adminStr, 10, 64)
+		for _, entry := range strings.Split(adminStr, ",") {
+			parts := strings.SplitN(strings.TrimSpace(entry), ":", 2)
+			if len(parts) >= 1 {
+				id, err := strconv.ParseInt(parts[0], 10, 64)
+				if err != nil {
+					continue
+				}
+				role := "admin"
+				if len(parts) == 2 {
+					role = parts[1]
+				}
+				adminIDs[id] = role
+			}
+		}
+	}
+	// Backward compat: single admin
+	if len(adminIDs) == 0 {
+		singleAdmin := os.Getenv("SPC_ADMIN_CHAT_ID")
+		if singleAdmin != "" {
+			id, _ := strconv.ParseInt(singleAdmin, 10, 64)
+			if id > 0 {
+				adminIDs[id] = "super"
+			}
+		}
 	}
 
-	bizumInfo = os.Getenv("SPC_BIZUM_PHONE")
-	if bizumInfo == "" {
-		bizumInfo = "(no configurado)"
+	bankInfo = os.Getenv("SPC_BANK_INFO")
+	if bankInfo == "" {
+		bankInfo = "(no configurado — usa /setbank IBAN)"
 	}
 
 	dataDir := os.Getenv("SPC_DATA_DIR")
@@ -89,10 +132,12 @@ func main() {
 		log.Fatalf("init order db: %v", err)
 	}
 
-	log.Println("SpainCoin Bot starting...")
-	log.Printf("Admin chat ID: %d", adminChat)
+	priceTiers = defaultTiers
 
-	// Long polling
+	log.Println("SpainCoin Bot starting...")
+	log.Printf("Admins: %v", adminIDs)
+	log.Printf("Bank info: %s", bankInfo)
+
 	offset := int64(0)
 	client := &http.Client{Timeout: 35 * time.Second}
 
@@ -139,10 +184,56 @@ func jsonStr(s string) string {
 	return string(b)
 }
 
+func isAdmin(chatID int64) bool {
+	_, ok := adminIDs[chatID]
+	return ok
+}
+
+func isSuper(chatID int64) bool {
+	role, ok := adminIDs[chatID]
+	return ok && role == "super"
+}
+
+func notifyAdmins(client *http.Client, text string, excludeChat int64) {
+	for id := range adminIDs {
+		if id != excludeChat {
+			sendMessage(client, id, text)
+		}
+	}
+}
+
+// getCurrentPrice returns the price based on auto-tiers or manual override.
+func getCurrentPrice() float64 {
+	// Check for manual override
+	manualPrice, _ := orderDB.GetPrice()
+	if manualPrice > 0 {
+		// Check if auto-pricing is disabled
+		autoMode, _ := orderDB.GetAdminValue("price_mode")
+		if autoMode == "manual" {
+			return manualPrice
+		}
+	}
+
+	// Auto-pricing based on total sold
+	totalSPC, _, _, _ := orderDB.GetStats()
+	for i := len(priceTiers) - 1; i >= 0; i-- {
+		if totalSPC >= priceTiers[i].SoldUpTo && i < len(priceTiers)-1 {
+			return priceTiers[i+1].Price
+		}
+	}
+	if len(priceTiers) > 0 {
+		return priceTiers[0].Price
+	}
+	return 0.10
+}
+
+// ==========================================
+// Message handler
+// ==========================================
+
 func handleMessage(client *http.Client, msg *TelegramMessage) {
 	text := strings.TrimSpace(msg.Text)
 	chatID := msg.Chat.ID
-	isAdmin := chatID == adminChat
 	userName := msg.From.FirstName
 	if msg.From.Username != "" {
 		userName = "@" + msg.From.Username
@@ -151,113 +242,179 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 	log.Printf("[MSG] from=%s chat=%d text=%s", userName, chatID, text)
 
 	switch {
-	// ===== PUBLIC COMMANDS =====
 	case text == "/start":
 		handleStart(client, chatID, userName)
-
 	case text == "/precio" || text == "/price":
 		handlePrecio(client, chatID)
-
 	case strings.HasPrefix(text, "/comprar"):
-		handleComprar(client, chatID, userName, text)
-
+		handleComprar(client, chatID, userName, msg.From.ID, text)
 	case strings.HasPrefix(text, "/vender"):
-		handleVender(client, chatID, userName, text)
-
-	case text == "/ayuda" || text == "/help":
-		handleAyuda(client, chatID, isAdmin)
-
+		handleVender(client, chatID, userName, msg.From.ID, text)
+	case strings.HasPrefix(text, "/registro"):
+		handleRegistro(client, chatID, userName, text)
 	case text == "/miwallet":
 		handleMiWallet(client, chatID)
+	case text == "/comocomprar":
+		handleComoComprar(client, chatID)
+	case text == "/ayuda" || text == "/help":
+		handleAyuda(client, chatID)
 
-	// ===== ADMIN COMMANDS =====
-	case isAdmin && strings.HasPrefix(text, "/setprecio"):
-		handleSetPrecio(client, chatID, text)
-
-	case isAdmin && text == "/ventas":
+	// Admin commands
+	case isAdmin(chatID) && text == "/ventas":
 		handleVentas(client, chatID)
-
-	case isAdmin && strings.HasPrefix(text, "/confirmar"):
-		handleConfirmar(client, chatID, text)
-
-	case isAdmin && strings.HasPrefix(text, "/cancelar"):
+	case isAdmin(chatID) && strings.HasPrefix(text, "/confirmar"):
+		handleConfirmar(client, chatID, text, userName)
+	case isAdmin(chatID) && strings.HasPrefix(text, "/cancelar"):
 		handleCancelar(client, chatID, text)
-
-	case isAdmin && text == "/stats":
+	case isAdmin(chatID) && text == "/stats":
 		handleStats(client, chatID)
 
-	case isAdmin && text == "/myadmin":
-		sendMessage(client, chatID, fmt.Sprintf("Tu chat ID es: <code>%d</code>", chatID))
+	// Super admin only (no price control via Telegram — only auto-tiers or SSH)
+	case isSuper(chatID) && strings.HasPrefix(text, "/addadmin"):
+		handleAddAdmin(client, chatID, text)
+	case isSuper(chatID) && text == "/admins":
+		handleListAdmins(client, chatID)
+	case isSuper(chatID) && text == "/myid":
+		sendMessage(client, chatID, fmt.Sprintf("Tu chat ID: <code>%d</code>", chatID))
+	case isSuper(chatID) && text == "/tiers":
+		handleShowTiers(client, chatID)
 
 	default:
 		if strings.HasPrefix(text, "/") {
-			sendMessage(client, chatID, "Comando no reconocido. Escribe /ayuda para ver los comandos disponibles.")
+			sendMessage(client, chatID, "Comando no reconocido. Escribe /ayuda")
 		}
 	}
 }
 
+// ==========================================
+// Public commands
+// ==========================================
+
 func handleStart(client *http.Client, chatID int64, name string) {
-	price, _ := orderDB.GetPrice()
-	msg := fmt.Sprintf(`¡Hola %s! 👋
+	price := getCurrentPrice()
+	totalSPC, _, _, _ := orderDB.GetStats()
+	nextTier := ""
+	for _, t := range priceTiers {
+		if totalSPC < t.SoldUpTo {
+			remaining := t.SoldUpTo - totalSPC
+			nextTier = fmt.Sprintf("\n⏰ Faltan %.0f SPC para que el precio suba a %.2f€", remaining, getNextPrice())
+			break
+		}
+	}
+
+	msg := fmt.Sprintf(`¡Hola %s! 🇪🇸
 
 Bienvenido a <b>SpainCoin ($SPC)</b>
-La blockchain de España 🇪🇸
+La primera blockchain española
 
-💰 Precio actual: <b>%.4f€</b> por SPC
+💰 Precio: <b>%.4f€</b> por SPC%s
 
-<b>Comandos:</b>
-/precio — Ver precio actual
+<b>¿Qué quieres hacer?</b>
 /comprar 50 — Comprar 50€ de SPC
 /vender 100 — Vender 100 SPC
-/miwallet — Cómo crear tu wallet
+/precio — Ver precio actual
+/miwallet — Crear tu wallet
+/comocomprar — Guía paso a paso
 /ayuda — Todos los comandos
 
-🌐 Web: spaincoin.es`, name, price)
+🌐 spaincoin.es`, name, price, nextTier)
 	sendMessage(client, chatID, msg)
 }
 
 func handlePrecio(client *http.Client, chatID int64) {
-	price, _ := orderDB.GetPrice()
+	price := getCurrentPrice()
 	totalSPC, totalEUR, count, _ := orderDB.GetStats()
-	msg := fmt.Sprintf(`💰 <b>Precio SPC:</b> %.4f€
 
-📊 Estadísticas:
-• Vendidos: %.2f SPC
-• Recaudado: %.2f€
-• Operaciones: %d
+	nextPrice := getNextPrice()
+	nextTierInfo := ""
+	for _, t := range priceTiers {
+		if totalSPC < t.SoldUpTo {
+			remaining := t.SoldUpTo - totalSPC
+			nextTierInfo = fmt.Sprintf("\n\n⏰ <b>Siguiente subida:</b>\nCuando se vendan %.0f SPC más → precio sube a <b>%.2f€</b>", remaining, nextPrice)
+			break
+		}
+	}
 
-🌐 spaincoin.es`, price, totalSPC, totalEUR, count)
+	msg := fmt.Sprintf(`💰 <b>SpainCoin ($SPC)</b>
+
+Precio: <b>%.4f€</b>
+Vendidos: %.2f SPC
+Recaudado: %.2f€
+Operaciones: %d%s
+
+🌐 spaincoin.es`, price, totalSPC, totalEUR, count, nextTierInfo)
 	sendMessage(client, chatID, msg)
 }
 
-func handleComprar(client *http.Client, chatID int64, userName, text string) {
+func getNextPrice() float64 {
+	totalSPC, _, _, _ := orderDB.GetStats()
+	for _, t := range priceTiers {
+		if totalSPC < t.SoldUpTo {
+			// Find the next tier
+			for _, t2 := range priceTiers {
+				if t2.SoldUpTo > t.SoldUpTo {
+					return t2.Price
+				}
+			}
+			return t.Price
+		}
+	}
+	return priceTiers[len(priceTiers)-1].Price
+}
+
+func handleComprar(client *http.Client, chatID int64, userName string, userID int64, text string) {
 	parts := strings.Fields(text)
 	if len(parts) < 2 {
-		sendMessage(client, chatID, "Uso: /comprar 50\n(cantidad en EUR que quieres gastar)")
-		return
-	}
-	amountEUR, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil || amountEUR < 1 || amountEUR > 10000 {
-		sendMessage(client, chatID, "Cantidad inválida. Ejemplo: /comprar 50")
+		sendMessage(client, chatID, `💶 <b>¿Cuánto quieres comprar?</b>
+
+Escribe /comprar seguido de la cantidad en euros.
+
+Ejemplos:
+<code>/comprar 10</code> — Comprar 10€ de SPC
+<code>/comprar 50</code> — Comprar 50€ de SPC
+<code>/comprar 100</code> — Comprar 100€ de SPC`)
 		return
 	}
 
-	price, _ := orderDB.GetPrice()
+	amountEUR, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil || amountEUR < 1 || amountEUR > 50000 {
+		sendMessage(client, chatID, "Cantidad inválida. Mínimo 1€, máximo 50.000€.\nEjemplo: /comprar 50")
+		return
+	}
+
+	price := getCurrentPrice()
 	amountSPC := math.Round((amountEUR/price)*10000) / 10000
 
-	// Check if they provided wallet address
+	// Check for wallet address — from command or registered
 	walletAddr := ""
 	if len(parts) >= 3 && strings.HasPrefix(parts[2], "SPC") {
 		walletAddr = parts[2]
 	}
+	if walletAddr == "" {
+		// Try registered wallet
+		saved, _ := orderDB.GetAdminValue(fmt.Sprintf("wallet_%d", chatID))
+		if saved != "" {
+			walletAddr = saved
+		}
+	}
 
 	if walletAddr == "" {
-		sendMessage(client, chatID, fmt.Sprintf(`Para completar la compra necesito tu dirección SPC.
+		sendMessage(client, chatID, fmt.Sprintf(`💰 <b>Compra de %.2f€ de SPC</b>
 
-Envía:
-<code>/comprar %.0f SPCtu_direccion_aqui</code>
+Al precio actual recibirías: <b>%.4f SPC</b>
 
-¿No tienes wallet? Escribe /miwallet`, amountEUR))
+Primero registra tu wallet:
+<code>/registro SPCtu_direccion</code>
+
+Después simplemente:
+<code>/comprar %.0f</code>
+
+¿No tienes wallet? → /miwallet`, amountEUR, amountSPC, amountEUR))
+		return
+	}
+
+	if len(walletAddr) != 43 || !strings.HasPrefix(walletAddr, "SPC") {
+		sendMessage(client, chatID, "❌ Dirección SPC inválida. Debe empezar por SPC y tener 43 caracteres.\nEjemplo: SPCa1b2c3d4e5f6...")
 		return
 	}
 
@@ -273,50 +430,65 @@ Envía:
 	}
 	orderDB.CreateOrder(order)
 
-	// Notify user
-	msg := fmt.Sprintf(`✅ <b>Orden de compra #%d creada</b>
+	msg := fmt.Sprintf(`✅ <b>Orden #%d creada</b>
 
 💶 Pagas: <b>%.2f€</b>
 💰 Recibes: <b>%.4f SPC</b>
 📍 Precio: %.4f€/SPC
-📬 Wallet: <code>%s</code>
+📬 Tu wallet: <code>%s</code>
 
-<b>Siguiente paso:</b>
-Envía %.2f€ por Bizum al %s
-Concepto: "SPC-%d"
+<b>👉 Siguiente paso:</b>
+Haz una transferencia de <b>%.2f€</b> a:
 
-Cuando enviemos los SPC recibirás confirmación aquí.`, order.ID, amountEUR, amountSPC, price, walletAddr, amountEUR, bizumInfo, order.ID)
+%s
+
+Concepto: <code>SPC-%d</code>
+
+Cuando verifiquemos el pago, recibirás tus SPC y una confirmación aquí. ⏱️ Normalmente en menos de 10 minutos.`, order.ID, amountEUR, amountSPC, price, walletAddr, amountEUR, bankInfo, order.ID)
 	sendMessage(client, chatID, msg)
 
-	// Notify admin
-	if adminChat > 0 {
-		adminMsg := fmt.Sprintf(`🔔 <b>NUEVA COMPRA #%d</b>
+	// Notify all admins
+	adminMsg := fmt.Sprintf(`🔔 <b>NUEVA COMPRA #%d</b>
 
 👤 %s
 💶 %.2f€ → %.4f SPC
 📍 Precio: %.4f€
 📬 <code>%s</code>
+💳 Concepto: SPC-%d
 
-Para confirmar: /confirmar %d
-Para cancelar: /cancelar %d`, order.ID, userName, amountEUR, amountSPC, price, walletAddr, order.ID, order.ID)
-		sendMessage(client, adminChat, adminMsg)
+/confirmar %d
+/cancelar %d`, order.ID, userName, amountEUR, amountSPC, price, walletAddr, order.ID, order.ID, order.ID)
+	for id := range adminIDs {
+		sendMessage(client, id, adminMsg)
 	}
 }
 
-func handleVender(client *http.Client, chatID int64, userName, text string) {
+func handleVender(client *http.Client, chatID int64, userName string, userID int64, text string) {
 	parts := strings.Fields(text)
 	if len(parts) < 2 {
-		sendMessage(client, chatID, "Uso: /vender 100\n(cantidad de SPC que quieres vender)")
+		sendMessage(client, chatID, `💰 <b>¿Cuántos SPC quieres vender?</b>
+
+Escribe /vender seguido de la cantidad de SPC.
+
+Ejemplos:
+<code>/vender 100</code> — Vender 100 SPC
+<code>/vender 500</code> — Vender 500 SPC`)
 		return
 	}
+
 	amountSPC, err := strconv.ParseFloat(parts[1], 64)
 	if err != nil || amountSPC < 0.01 {
 		sendMessage(client, chatID, "Cantidad inválida. Ejemplo: /vender 100")
 		return
 	}
 
-	price, _ := orderDB.GetPrice()
+	price := getCurrentPrice()
 	amountEUR := math.Round(amountSPC*price*100) / 100
+
+	adminAddr, _ := orderDB.GetAdminValue("hot_wallet_address")
+	if adminAddr == "" {
+		adminAddr = "(pendiente — un admin lo configurará)"
+	}
 
 	order := &database.Order{
 		Type:       "sell",
@@ -329,146 +501,184 @@ func handleVender(client *http.Client, chatID int64, userName, text string) {
 	}
 	orderDB.CreateOrder(order)
 
-	// Admin's SPC address for receiving
-	adminAddr, _ := orderDB.GetAdminValue("admin_spc_address")
-	if adminAddr == "" {
-		adminAddr = "(pendiente de configurar)"
-	}
-
 	msg := fmt.Sprintf(`✅ <b>Orden de venta #%d creada</b>
 
 💰 Vendes: <b>%.4f SPC</b>
 💶 Recibes: <b>%.2f€</b>
 📍 Precio: %.4f€/SPC
 
-<b>Siguiente paso:</b>
-Envía %.4f SPC a esta dirección:
+<b>👉 Siguiente paso:</b>
+Envía <b>%.4f SPC</b> a esta dirección:
 <code>%s</code>
 
-Cuando recibamos los SPC te haremos Bizum por %.2f€.`, order.ID, amountSPC, amountEUR, price, amountSPC, adminAddr, amountEUR)
+Cuando verifiquemos la recepción, te haremos transferencia de %.2f€.`, order.ID, amountSPC, amountEUR, price, amountSPC, adminAddr, amountEUR)
 	sendMessage(client, chatID, msg)
 
-	if adminChat > 0 {
-		adminMsg := fmt.Sprintf(`🔔 <b>NUEVA VENTA #%d</b>
+	adminMsg := fmt.Sprintf(`🔔 <b>NUEVA VENTA #%d</b>
 
 👤 %s
 💰 %.4f SPC → %.2f€
 
-Para confirmar: /confirmar %d
-Para cancelar: /cancelar %d`, order.ID, userName, amountSPC, amountEUR, order.ID, order.ID)
-		sendMessage(client, adminChat, adminMsg)
+/confirmar %d
+/cancelar %d`, order.ID, userName, amountSPC, amountEUR, order.ID, order.ID)
+	for id := range adminIDs {
+		sendMessage(client, id, adminMsg)
 	}
 }
 
+func handleRegistro(client *http.Client, chatID int64, userName, text string) {
+	parts := strings.Fields(text)
+	if len(parts) < 2 || !strings.HasPrefix(parts[1], "SPC") || len(parts[1]) != 43 {
+		sendMessage(client, chatID, `📝 <b>Registra tu wallet</b>
+
+Escribe /registro seguido de tu dirección SPC:
+
+<code>/registro SPCtu_direccion_aqui</code>
+
+Así no tendrás que pegarla cada vez que compres.
+
+¿No tienes wallet? → /miwallet`)
+		return
+	}
+
+	addr := parts[1]
+	key := fmt.Sprintf("wallet_%d", chatID)
+	orderDB.SetAdminValue(key, addr)
+
+	sendMessage(client, chatID, fmt.Sprintf(`✅ <b>Wallet registrada</b>
+
+📬 <code>%s</code>
+
+Ahora puedes comprar directamente:
+<code>/comprar 50</code>
+
+No necesitas pegar tu dirección cada vez.`, addr))
+
+	// Notify admins
+	for id := range adminIDs {
+		sendMessage(client, id, fmt.Sprintf("📝 Nuevo registro: %s → <code>%s</code>", userName, addr))
+	}
+}
+
+func handleComoComprar(client *http.Client, chatID int64) {
+	msg := fmt.Sprintf(`📖 <b>Cómo comprar SpainCoin en 3 pasos</b>
+
+<b>Paso 1 — Crea tu wallet</b>
+Entra en spaincoin.es desde tu móvil.
+Pulsa "Wallet" → "Crear Wallet".
+Te dará una dirección SPCxxx... y una clave privada.
+⚠️ Guarda la clave privada en papel.
+
+<b>Paso 2 — Haz el pedido</b>
+Escribe aquí:
+<code>/comprar 50 SPCtu_direccion</code>
+(cambia 50 por la cantidad en € y pega tu dirección)
+
+<b>Paso 3 — Paga</b>
+Haz una transferencia a:
+%s
+Con el concepto que te indique el bot.
+
+¡Listo! Recibirás tus SPC en minutos. 🎉
+
+💰 Precio actual: <b>%.4f€</b> por SPC`, bankInfo, getCurrentPrice())
+	sendMessage(client, chatID, msg)
+}
+
 func handleMiWallet(client *http.Client, chatID int64) {
-	msg := `🔐 <b>Cómo crear tu wallet SpainCoin</b>
+	msg := `🔐 <b>Crear tu wallet SpainCoin</b>
 
-<b>Opción 1 — Desde el móvil:</b>
-Entra en spaincoin.es/wallet y pulsa "Crear Wallet"
-(las claves se generan en TU dispositivo, nunca salen de él)
+<b>Desde el móvil (recomendado):</b>
+1. Abre spaincoin.es en tu navegador
+2. Toca "Wallet"
+3. Toca "Crear Wallet"
+4. ¡Listo! Tu dirección SPCxxx... aparece en pantalla
 
-<b>Opción 2 — Descarga el CLI:</b>
-Descarga desde spaincoin.es → Wallet → tu sistema operativo
-
-Luego ejecuta:
-<code>./spc wallet new</code>
-
-⚠️ <b>IMPORTANTE:</b> Guarda tu clave privada en papel. Si la pierdes, pierdes tus fondos para siempre. NUNCA la compartas con nadie.
+⚠️ <b>MUY IMPORTANTE:</b>
+• Guarda tu clave privada EN PAPEL
+• Si la pierdes, pierdes tus fondos PARA SIEMPRE
+• NUNCA se la des a nadie
 
 🌐 spaincoin.es/#/wallet`
 	sendMessage(client, chatID, msg)
 }
 
-func handleAyuda(client *http.Client, chatID int64, isAdmin bool) {
-	msg := `📖 <b>Comandos SpainCoin Bot</b>
+func handleAyuda(client *http.Client, chatID int64) {
+	msg := `📖 <b>Comandos SpainCoin</b>
 
-/precio — Ver precio actual de SPC
-/comprar 50 SPCxxx — Comprar 50€ de SPC
+💰 <b>Operar:</b>
+/registro SPCxxx — Registrar tu wallet (una sola vez)
+/comprar 50 — Comprar 50€ de SPC
 /vender 100 — Vender 100 SPC
-/miwallet — Cómo crear tu wallet
-/ayuda — Este mensaje`
+/precio — Ver precio actual
 
-	if isAdmin {
+📱 <b>Wallet:</b>
+/miwallet — Cómo crear tu wallet
+/comocomprar — Guía paso a paso
+
+ℹ️ <b>Info:</b>
+/ayuda — Este mensaje
+
+🌐 spaincoin.es`
+
+	if isAdmin(chatID) {
 		msg += `
 
 🔑 <b>Admin:</b>
-/setprecio 0.15 — Cambiar precio
-/ventas — Ver órdenes pendientes
+/ventas — Órdenes pendientes
 /confirmar 23 — Confirmar orden
 /cancelar 23 — Cancelar orden
-/stats — Estadísticas totales`
+/stats — Estadísticas`
+	}
+
+	if isSuper(chatID) {
+		msg += `
+
+👑 <b>Super Admin:</b>
+/addadmin 123456 — Añadir admin
+/admins — Ver admins
+/tiers — Ver escalones de precio
+/myid — Ver tu chat ID
+(Precio solo modificable via SSH)`
 	}
 
 	sendMessage(client, chatID, msg)
 }
 
-// ===== ADMIN COMMANDS =====
-
-func handleSetPrecio(client *http.Client, chatID int64, text string) {
-	parts := strings.Fields(text)
-	if len(parts) < 2 {
-		sendMessage(client, chatID, "Uso: /setprecio 0.15")
-		return
-	}
-	price, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil || price <= 0 || price > 1000000 {
-		sendMessage(client, chatID, "Precio inválido. Ejemplo: /setprecio 0.15")
-		return
-	}
-	oldPrice, _ := orderDB.GetPrice()
-	orderDB.SetPrice(price)
-
-	change := ((price - oldPrice) / oldPrice) * 100
-	arrow := "📈"
-	if price < oldPrice {
-		arrow = "📉"
-	}
-
-	msg := fmt.Sprintf(`%s <b>Precio actualizado</b>
-
-Anterior: %.4f€
-Nuevo: <b>%.4f€</b>
-Cambio: %.2f%%`, arrow, oldPrice, price, change)
-	sendMessage(client, chatID, msg)
-}
+// ==========================================
+// Admin commands
+// ==========================================
 
 func handleVentas(client *http.Client, chatID int64) {
 	orders, _ := orderDB.GetPendingOrders()
 	if len(orders) == 0 {
-		sendMessage(client, chatID, "No hay órdenes pendientes.")
+		sendMessage(client, chatID, "✅ No hay órdenes pendientes.")
 		return
 	}
 
-	msg := fmt.Sprintf("📋 <b>%d órdenes pendientes:</b>\n\n", len(orders))
+	msg := fmt.Sprintf("📋 <b>%d órdenes pendientes:</b>\n", len(orders))
 	for _, o := range orders {
-		emoji := "🟢"
+		emoji := "🟢 COMPRA"
 		if o.Type == "sell" {
-			emoji = "🔴"
+			emoji = "🔴 VENTA"
 		}
-		msg += fmt.Sprintf("%s #%d %s — %.2f€ / %.4f SPC — %s\n", emoji, o.ID, o.Type, o.AmountEUR, o.AmountSPC, o.UserName)
+		msg += fmt.Sprintf("\n%s #%d\n👤 %s\n💶 %.2f€ / %.4f SPC\n→ /confirmar %d\n", emoji, o.ID, o.UserName, o.AmountEUR, o.AmountSPC, o.ID)
 	}
-	msg += "\nPara confirmar: /confirmar ID"
 	sendMessage(client, chatID, msg)
 }
 
-func handleConfirmar(client *http.Client, chatID int64, text string) {
+func handleConfirmar(client *http.Client, chatID int64, text string, adminName string) {
 	parts := strings.Fields(text)
 	if len(parts) < 2 {
 		sendMessage(client, chatID, "Uso: /confirmar 23")
 		return
 	}
-	id, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
-		sendMessage(client, chatID, "ID inválido.")
-		return
-	}
-
+	id, _ := strconv.ParseInt(parts[1], 10, 64)
 	order, err := orderDB.GetOrder(id)
 	if err != nil {
 		sendMessage(client, chatID, fmt.Sprintf("Orden #%d no encontrada.", id))
 		return
 	}
-
 	if order.Status != database.OrderPending {
 		sendMessage(client, chatID, fmt.Sprintf("Orden #%d ya está %s.", id, order.Status))
 		return
@@ -476,26 +686,43 @@ func handleConfirmar(client *http.Client, chatID int64, text string) {
 
 	orderDB.ConfirmOrder(id)
 
+	// Notify confirming admin
 	sendMessage(client, chatID, fmt.Sprintf("✅ Orden #%d confirmada.", id))
+
+	// Notify other admins
+	notifyAdmins(client, fmt.Sprintf("✅ Orden #%d confirmada por %s.", id, adminName), chatID)
 
 	// Notify user
 	if order.UserChatID > 0 {
 		var userMsg string
 		if order.Type == "buy" {
-			userMsg = fmt.Sprintf(`✅ <b>¡Compra completada!</b>
+			userMsg = fmt.Sprintf(`🎉 <b>¡Compra completada!</b>
 
 Has recibido <b>%.4f SPC</b> en tu wallet:
 <code>%s</code>
 
-Gracias por confiar en SpainCoin 🇪🇸`, order.AmountSPC, order.WalletAddr)
-		} else {
-			userMsg = fmt.Sprintf(`✅ <b>¡Venta completada!</b>
+Precio: %.4f€/SPC
+Total pagado: %.2f€
 
-Te hemos enviado <b>%.2f€</b> por Bizum.
+¡Bienvenido a SpainCoin! 🇪🇸
+Comparte con tus amigos → cuantos más seamos, más vale $SPC.`, order.AmountSPC, order.WalletAddr, order.PriceEUR, order.AmountEUR)
+		} else {
+			userMsg = fmt.Sprintf(`🎉 <b>¡Venta completada!</b>
+
+Te hemos enviado <b>%.2f€</b> por transferencia.
 
 Gracias por confiar en SpainCoin 🇪🇸`, order.AmountEUR)
 		}
 		sendMessage(client, order.UserChatID, userMsg)
+	}
+
+	// Check if price should auto-update
+	newPrice := getCurrentPrice()
+	oldPrice := order.PriceEUR
+	if newPrice > oldPrice {
+		for id := range adminIDs {
+			sendMessage(client, id, fmt.Sprintf("📈 <b>Precio automático actualizado:</b> %.4f€ → %.4f€", oldPrice, newPrice))
+		}
 	}
 }
 
@@ -515,19 +742,113 @@ func handleCancelar(client *http.Client, chatID int64, text string) {
 	sendMessage(client, chatID, fmt.Sprintf("❌ Orden #%d cancelada.", id))
 
 	if order.UserChatID > 0 {
-		sendMessage(client, order.UserChatID, fmt.Sprintf("❌ Tu orden #%d ha sido cancelada. Si tienes dudas, escribe /ayuda.", id))
+		sendMessage(client, order.UserChatID, fmt.Sprintf("❌ Tu orden #%d ha sido cancelada. Si crees que es un error, escribe /ayuda.", id))
 	}
 }
 
 func handleStats(client *http.Client, chatID int64) {
 	totalSPC, totalEUR, count, _ := orderDB.GetStats()
-	price, _ := orderDB.GetPrice()
+	price := getCurrentPrice()
+
+	// Find current tier
+	currentTier := ""
+	for i, t := range priceTiers {
+		if totalSPC < t.SoldUpTo {
+			currentTier = fmt.Sprintf("Tier %d: hasta %.0f SPC a %.2f€", i+1, t.SoldUpTo, t.Price)
+			break
+		}
+	}
+
 	msg := fmt.Sprintf(`📊 <b>Estadísticas SpainCoin</b>
 
 💰 Precio actual: %.4f€
-📈 Total vendido: %.2f SPC
-💶 Total recaudado: %.2f€
+📈 Total SPC vendidos: %.2f
+💶 Total EUR recaudado: %.2f€
 🔄 Operaciones completadas: %d
-📦 Valor SPC vendido hoy: %.2f€`, price, totalSPC, totalEUR, count, totalSPC*price)
+📦 Valor SPC vendido: %.2f€
+
+🏷️ %s
+🏦 Banco: %s`, price, totalSPC, totalEUR, count, totalSPC*price, currentTier, bankInfo)
+	sendMessage(client, chatID, msg)
+}
+
+// ==========================================
+// Super admin commands
+// ==========================================
+
+func handleSetPrecio(client *http.Client, chatID int64, text string) {
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		sendMessage(client, chatID, "Uso: /setprecio 0.15")
+		return
+	}
+	price, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil || price <= 0 {
+		sendMessage(client, chatID, "Precio inválido.")
+		return
+	}
+	oldPrice := getCurrentPrice()
+	orderDB.SetPrice(price)
+	orderDB.SetAdminValue("price_mode", "manual")
+
+	sendMessage(client, chatID, fmt.Sprintf("💰 Precio manual: %.4f€ → <b>%.4f€</b>\n⚠️ Modo automático desactivado. Usa /autoprecio para reactivar.", oldPrice, price))
+	notifyAdmins(client, fmt.Sprintf("💰 Precio cambiado manualmente a %.4f€", price), chatID)
+}
+
+func handleAutoPrecio(client *http.Client, chatID int64) {
+	orderDB.SetAdminValue("price_mode", "auto")
+	price := getCurrentPrice()
+	sendMessage(client, chatID, fmt.Sprintf("📈 Precio automático activado. Precio actual: <b>%.4f€</b>\nEl precio sube automáticamente según los SPC vendidos.", price))
+}
+
+func handleSetBank(client *http.Client, chatID int64, text string) {
+	parts := strings.SplitN(text, " ", 2)
+	if len(parts) < 2 || len(parts[1]) < 5 {
+		sendMessage(client, chatID, "Uso: /setbank ES12 3456 7890 1234 5678 9012")
+		return
+	}
+	bankInfo = strings.TrimSpace(parts[1])
+	orderDB.SetAdminValue("bank_info", bankInfo)
+	sendMessage(client, chatID, fmt.Sprintf("🏦 Banco actualizado:\n<code>%s</code>", bankInfo))
+}
+
+func handleAddAdmin(client *http.Client, chatID int64, text string) {
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		sendMessage(client, chatID, "Uso: /addadmin 123456789\nEl usuario debe escribir /myid al bot para obtener su ID.")
+		return
+	}
+	newID, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		sendMessage(client, chatID, "ID inválido.")
+		return
+	}
+	adminIDs[newID] = "admin"
+	sendMessage(client, chatID, fmt.Sprintf("✅ Admin añadido: %d\n⚠️ Para hacerlo permanente, añade el ID a SPC_ADMIN_IDS en el .env", newID))
+}
+
+func handleListAdmins(client *http.Client, chatID int64) {
+	msg := "👥 <b>Admins actuales:</b>\n"
+	for id, role := range adminIDs {
+		emoji := "🔑"
+		if role == "super" {
+			emoji = "👑"
+		}
+		msg += fmt.Sprintf("%s %d — %s\n", emoji, id, role)
+	}
+	sendMessage(client, chatID, msg)
+}
+
+func handleShowTiers(client *http.Client, chatID int64) {
+	totalSPC, _, _, _ := orderDB.GetStats()
+	msg := "📊 <b>Escalones de precio:</b>\n\n"
+	for i, t := range priceTiers {
+		marker := ""
+		if totalSPC < t.SoldUpTo && (i == 0 || totalSPC >= priceTiers[i-1].SoldUpTo) {
+			marker = " ← AQUÍ"
+		}
+		msg += fmt.Sprintf("%.0f SPC → %.2f€%s\n", t.SoldUpTo, t.Price, marker)
+	}
+	msg += fmt.Sprintf("\nVendidos: %.2f SPC", totalSPC)
 	sendMessage(client, chatID, msg)
 }
