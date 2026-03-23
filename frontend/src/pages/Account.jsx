@@ -24,15 +24,16 @@ export default function Account({ onNavigate }) {
   }, [user, loading, onNavigate])
 
   const [eurBalance, setEurBalance] = useState(null)
+  const [exchangeSPC, setExchangeSPC] = useState(null)
 
-  // Load full account data (balance, nonce) + EUR balance
+  // Load full account data (balance, nonce) + exchange balances
   useEffect(() => {
     if (!token || !user) return
     getMe(token)
       .then(data => setAccountData(data))
       .catch(err => setFetchError(err.message))
     getTradeBalance(token)
-      .then(data => setEurBalance(data.eur))
+      .then(data => { setEurBalance(data.eur); setExchangeSPC(data.spc) })
       .catch(() => {})
   }, [token, user])
 
@@ -196,7 +197,7 @@ export default function Account({ onNavigate }) {
           }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Balance SPC</div>
             <div style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)' }}>
-              {Number(balance).toLocaleString('es-ES')}
+              {Number(exchangeSPC ?? balance).toLocaleString('es-ES', { maximumFractionDigits: 4 })}
               <span style={{ fontSize: '0.8rem', color: 'var(--accent)', marginLeft: '0.3rem', fontWeight: '500' }}>SPC</span>
             </div>
           </div>
