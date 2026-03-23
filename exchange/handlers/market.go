@@ -198,12 +198,28 @@ var ReferenceCryptos = []ExternalCoin{
 	{"MATIC", "Polygon", 0.22, 10_000_000_000, 37},
 }
 
-// GetSimulatedPrice returns the simulated price for any supported symbol at a given block height.
-// Returns (price, true) if found, or (0, false) if the symbol is not supported.
+// priceCache is the global Binance price cache, initialized by InitPriceCache.
+var priceCache *market.PriceCache
+
+// InitPriceCache starts the background Binance price fetcher.
+func InitPriceCache() {
+	priceCache = market.NewPriceCache()
+}
+
+// GetSimulatedPrice returns the price for any supported symbol.
+// For SPC: uses the deterministic simulator.
+// For BTC/ETH/etc: uses real Binance prices with fallback to simulated.
 func GetSimulatedPrice(symbol string, sim *market.Simulator, height uint64) (float64, bool) {
 	if symbol == "SPC" {
 		return sim.PriceAtHeight(height), true
 	}
+	// Try real price from Binance first
+	if priceCache != nil {
+		if price, ok := priceCache.GetPrice(symbol); ok && price > 0 {
+			return math.Round(price*100) / 100, true
+		}
+	}
+	// Fallback to simulated price
 	h := float64(height)
 	for _, c := range ReferenceCryptos {
 		if c.Symbol == symbol {
@@ -253,28 +269,33 @@ func HandleMarketTable(nodeClient *client.NodeClient, sim *market.Simulator) htt
 			},
 		}
 
-		// Reference cryptos with simulated variation
-		h := float64(nodeStatus.Height)
+		// Reference cryptos — real prices from Binance, fallback to simulated
 		for _, c := range ReferenceCryptos {
-			// Each coin has unique wave pattern seeded by its WaveDiv
-			wave1 := math.Sin(h/c.WaveDiv) * 0.02
-			wave2 := math.Sin(h/(c.WaveDiv*2.7)) * 0.015
-			price := c.BasePrice * (1 + wave1 + wave2)
-			price = math.Round(price*100) / 100
+			price, _ := GetSimulatedPrice(c.Symbol, sim, nodeStatus.Height)
 
-			// 24h change from block height offset
-			prevH := h - 17280
-			if prevH < 0 {
-				prevH = 0
+			// Try real 24h data from Binance
+			var ch, vol float64
+			if priceCache != nil {
+				if ticker, ok := priceCache.GetTicker24h(c.Symbol); ok {
+					price = math.Round(ticker.Price*100) / 100
+					ch = math.Round(ticker.Change*100) / 100
+					vol = math.Round(ticker.Volume)
+				}
 			}
-			prevWave1 := math.Sin(prevH/c.WaveDiv) * 0.02
-			prevWave2 := math.Sin(prevH/(c.WaveDiv*2.7)) * 0.015
-			prevPrice := c.BasePrice * (1 + prevWave1 + prevWave2)
-			ch := ((price - prevPrice) / prevPrice) * 100
-			ch = math.Round(ch*100) / 100
 
-			vol := c.BasePrice * c.Supply * 0.001 * (1 + math.Sin(h/50)*0.3)
-			vol = math.Round(vol)
+			// Fallback to simulated change/volume
+			if vol == 0 {
+				h := float64(nodeStatus.Height)
+				prevH := h - 17280
+				if prevH < 0 {
+					prevH = 0
+				}
+				prevPrice, _ := GetSimulatedPrice(c.Symbol, sim, uint64(prevH))
+				if prevPrice > 0 {
+					ch = math.Round(((price-prevPrice)/prevPrice)*10000) / 100
+				}
+				vol = math.Round(c.BasePrice * c.Supply * 0.001)
+			}
 
 			table = append(table, marketTableEntry{
 				Symbol:    c.Symbol,

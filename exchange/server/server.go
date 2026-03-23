@@ -122,6 +122,9 @@ func (s *Server) registerRoutes() {
 	nodeClient := client.NewNodeClient(s.nodeURL)
 	sim := market.NewSimulator(0.09) // base price: €0.09
 
+	// Start Binance price cache for real crypto prices
+	handlers.InitPriceCache()
+
 	mux := s.router
 
 	mux.HandleFunc("/api/status", handlers.HandleStatus(nodeClient))
