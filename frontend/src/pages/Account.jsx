@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../auth/useAuth.jsx'
-import { getMe } from '../api/client.js'
+import { getMe, getTradeBalance } from '../api/client.js'
 
 export default function Account({ onNavigate }) {
   const { user, token, loading, logout } = useAuth()
@@ -23,12 +23,17 @@ export default function Account({ onNavigate }) {
     }
   }, [user, loading, onNavigate])
 
-  // Load full account data (balance, nonce)
+  const [eurBalance, setEurBalance] = useState(null)
+
+  // Load full account data (balance, nonce) + EUR balance
   useEffect(() => {
     if (!token || !user) return
     getMe(token)
       .then(data => setAccountData(data))
       .catch(err => setFetchError(err.message))
+    getTradeBalance(token)
+      .then(data => setEurBalance(data.eur))
+      .catch(() => {})
   }, [token, user])
 
   function copyAddress() {
@@ -189,10 +194,23 @@ export default function Account({ onNavigate }) {
             padding: '1rem',
             border: '1px solid var(--border)',
           }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Balance</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Balance SPC</div>
             <div style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)' }}>
               {Number(balance).toLocaleString('es-ES')}
               <span style={{ fontSize: '0.8rem', color: 'var(--accent)', marginLeft: '0.3rem', fontWeight: '500' }}>SPC</span>
+            </div>
+          </div>
+          <div style={{
+            flex: 1,
+            minWidth: '130px',
+            background: 'var(--bg-secondary)',
+            borderRadius: '10px',
+            padding: '1rem',
+            border: '1px solid var(--border)',
+          }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Saldo EUR</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+              {eurBalance !== null ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(eurBalance) : '—'}
             </div>
           </div>
           <div style={{
@@ -208,6 +226,20 @@ export default function Account({ onNavigate }) {
               {nonce}
             </div>
           </div>
+        </div>
+
+        {/* Quick links */}
+        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+          <button onClick={() => onNavigate('/wallet')} style={{
+            flex: 1, padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border)',
+            background: 'var(--bg-secondary)', color: 'var(--accent)', fontSize: '0.8rem',
+            fontWeight: '600', cursor: 'pointer',
+          }}>Ver cartera</button>
+          <button onClick={() => onNavigate('/trade/SPC')} style={{
+            flex: 1, padding: '0.5rem', borderRadius: '8px', border: 'none',
+            background: 'var(--accent)', color: '#fff', fontSize: '0.8rem',
+            fontWeight: '600', cursor: 'pointer',
+          }}>Operar</button>
         </div>
       </div>
 
