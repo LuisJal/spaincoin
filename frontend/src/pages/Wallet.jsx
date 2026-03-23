@@ -1,449 +1,253 @@
-import { useState } from 'react'
-import { getWallet, sendTx } from '../api/client.js'
-import { formatSPC, formatNumber } from '../utils/format.js'
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../auth/useAuth.jsx'
+import { getPortfolio, depositEUR, getTradeHistory } from '../api/client.js'
 
-const styles = {
-  page: {
-    maxWidth: '900px',
-    margin: '0 auto',
-    padding: '2rem 1.5rem 4rem',
-    width: '100%',
-  },
-  pageTitle: {
-    fontSize: '1.5rem',
-    fontWeight: '700',
-    color: 'var(--text-primary)',
-    marginBottom: '0.35rem',
-    letterSpacing: '-0.02em',
-  },
-  pageSub: {
-    fontSize: '0.875rem',
-    color: 'var(--text-secondary)',
-    marginBottom: '2.5rem',
-  },
-  card: {
-    background: 'var(--bg-card)',
-    border: '1px solid var(--border)',
-    borderRadius: '12px',
-    padding: '1.75rem',
-    marginBottom: '1.5rem',
-  },
-  cardTitle: {
-    fontSize: '1rem',
-    fontWeight: '600',
-    color: 'var(--text-primary)',
-    marginBottom: '0.35rem',
-  },
-  cardSub: {
-    fontSize: '0.8rem',
-    color: 'var(--text-secondary)',
-    marginBottom: '1.5rem',
-  },
-  label: {
-    display: 'block',
-    fontSize: '0.78rem',
-    fontWeight: '500',
-    color: 'var(--text-secondary)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    marginBottom: '0.4rem',
-  },
-  input: {
-    width: '100%',
-    background: 'var(--bg-secondary)',
-    border: '1px solid var(--border)',
-    borderRadius: '8px',
-    padding: '0.65rem 0.875rem',
-    color: 'var(--text-primary)',
-    fontSize: '0.875rem',
-    outline: 'none',
-    transition: 'border-color 0.15s ease',
-    fontFamily: 'inherit',
-  },
-  inputFocus: {
-    borderColor: 'var(--accent)',
-  },
-  inputRow: {
-    display: 'flex',
-    gap: '0.75rem',
-    alignItems: 'flex-end',
-  },
-  inputWrap: {
-    flex: 1,
-  },
-  btn: {
-    background: 'var(--accent)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '0.65rem 1.25rem',
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'background 0.15s ease, opacity 0.15s ease',
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
-  },
-  btnDisabled: {
-    opacity: 0.5,
-    cursor: 'not-allowed',
-  },
-  btnDanger: {
-    background: 'var(--red)',
-  },
-  resultCard: {
-    background: 'rgba(59, 130, 246, 0.08)',
-    border: '1px solid rgba(59, 130, 246, 0.2)',
-    borderRadius: '8px',
-    padding: '1rem 1.25rem',
-    marginTop: '1rem',
-  },
-  resultRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '0.35rem 0',
-  },
-  resultLabel: {
-    fontSize: '0.8rem',
-    color: 'var(--text-secondary)',
-  },
-  resultValue: {
-    fontSize: '0.875rem',
-    color: 'var(--text-primary)',
-    fontWeight: '500',
-  },
-  error: {
-    background: 'rgba(239, 68, 68, 0.08)',
-    border: '1px solid rgba(239, 68, 68, 0.2)',
-    borderRadius: '8px',
-    padding: '0.75rem 1rem',
-    color: '#ef4444',
-    fontSize: '0.8rem',
-    marginTop: '1rem',
-  },
-  success: {
-    background: 'rgba(16, 185, 129, 0.08)',
-    border: '1px solid rgba(16, 185, 129, 0.2)',
-    borderRadius: '8px',
-    padding: '0.75rem 1rem',
-    color: '#10b981',
-    fontSize: '0.8rem',
-    marginTop: '1rem',
-  },
-  warning: {
-    background: 'rgba(245, 158, 11, 0.08)',
-    border: '1px solid rgba(245, 158, 11, 0.2)',
-    borderRadius: '8px',
-    padding: '0.875rem 1rem',
-    marginBottom: '1.25rem',
-    fontSize: '0.82rem',
-    color: '#f59e0b',
-    lineHeight: 1.5,
-  },
-  // Prominent red security warning box
-  securityAlert: {
-    background: 'rgba(239, 68, 68, 0.12)',
-    border: '2px solid rgba(239, 68, 68, 0.5)',
-    borderRadius: '10px',
-    padding: '1rem 1.25rem',
-    marginBottom: '1.5rem',
-    fontSize: '0.875rem',
-    color: '#ef4444',
-    lineHeight: 1.6,
-  },
-  securityAlertTitle: {
-    fontWeight: '700',
-    fontSize: '0.95rem',
-    marginBottom: '0.4rem',
-    display: 'block',
-  },
-  balanceNote: {
-    fontSize: '0.78rem',
-    color: 'var(--text-secondary)',
-    marginTop: '0.5rem',
-    fontStyle: 'italic',
-  },
-  divider: {
-    border: 'none',
-    borderTop: '1px solid var(--border)',
-    margin: '1.5rem 0',
-  },
-  formGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-    gap: '1rem',
-    marginBottom: '1rem',
-  },
-  fieldWrap: {},
-  advancedBadge: {
-    display: 'inline-block',
-    fontSize: '0.7rem',
-    fontWeight: '600',
-    color: '#f59e0b',
-    background: 'rgba(245, 158, 11, 0.1)',
-    border: '1px solid rgba(245, 158, 11, 0.2)',
-    padding: '0.15rem 0.5rem',
-    borderRadius: '4px',
-    marginLeft: '0.5rem',
-    verticalAlign: 'middle',
-  },
-  cliBox: {
-    background: 'var(--bg-secondary)',
-    border: '1px solid var(--border)',
-    borderRadius: '8px',
-    padding: '0.875rem 1rem',
-    marginTop: '1.25rem',
-  },
-  cliLabel: {
-    fontSize: '0.7rem',
-    fontWeight: '600',
-    color: 'var(--text-secondary)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-    marginBottom: '0.5rem',
-    display: 'block',
-  },
-  cliCode: {
-    fontFamily: '"JetBrains Mono", "Fira Code", Consolas, monospace',
-    fontSize: '0.8rem',
-    color: 'var(--green)',
-    wordBreak: 'break-all',
-    lineHeight: 1.6,
-    display: 'block',
-  },
+const formatEUR = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
+const formatAmount = (n, sym) => {
+  if (sym === 'BTC') return n.toFixed(8)
+  if (['ETH', 'BNB', 'SOL', 'AVAX'].includes(sym)) return n.toFixed(6)
+  return n >= 1 ? n.toLocaleString('es-ES', { maximumFractionDigits: 4 }) : n.toFixed(6)
 }
 
-function InputField({ label, id, value, onChange, placeholder, mono }) {
-  const [focused, setFocused] = useState(false)
-  return (
-    <div style={styles.fieldWrap}>
-      <label htmlFor={id} style={styles.label}>{label}</label>
-      <input
-        id={id}
-        style={{
-          ...styles.input,
-          ...(focused ? styles.inputFocus : {}),
-          ...(mono ? { fontFamily: '"JetBrains Mono", Consolas, monospace', fontSize: '0.8rem' } : {}),
-        }}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder || ''}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        autoComplete="off"
-        spellCheck={false}
-      />
-    </div>
-  )
+const coinColors = {
+  SPC: '#ffc400', BTC: '#f7931a', ETH: '#627eea', BNB: '#f3ba2f',
+  SOL: '#9945ff', XRP: '#23292f', ADA: '#0033ad', DOGE: '#c2a633',
+  DOT: '#e6007a', AVAX: '#e84142', MATIC: '#8247e5',
 }
 
-export default function Wallet() {
-  // Check balance state
-  const [address, setAddress] = useState('')
-  const [walletData, setWalletData] = useState(null)
-  const [balanceError, setBalanceError] = useState(null)
-  const [balanceLoading, setBalanceLoading] = useState(false)
+export default function Wallet({ onNavigate }) {
+  const { user, token } = useAuth()
+  const [portfolio, setPortfolio] = useState(null)
+  const [trades, setTrades] = useState([])
+  const [depositAmount, setDepositAmount] = useState('')
+  const [showDeposit, setShowDeposit] = useState(false)
+  const [depositLoading, setDepositLoading] = useState(false)
+  const [depositResult, setDepositResult] = useState(null)
 
-  // Send tx state
-  const [txForm, setTxForm] = useState({
-    from: '', to: '', amount: '', fee: '', nonce: '', sig_r: '', sig_s: ''
-  })
-  const [sendError, setSendError] = useState(null)
-  const [sendSuccess, setSendSuccess] = useState(null)
-  const [sendLoading, setSendLoading] = useState(false)
-
-  async function handleCheckBalance(e) {
-    e.preventDefault()
-    if (!address.trim()) return
-    setBalanceLoading(true)
-    setBalanceError(null)
-    setWalletData(null)
+  const loadData = useCallback(async () => {
+    if (!token) return
     try {
-      const data = await getWallet(address.trim())
-      setWalletData(data)
-    } catch (err) {
-      setBalanceError('Could not fetch wallet: ' + err.message)
-    } finally {
-      setBalanceLoading(false)
+      const [p, t] = await Promise.all([getPortfolio(token), getTradeHistory(token)])
+      setPortfolio(p)
+      setTrades(t)
+    } catch (e) {
+      console.error('Portfolio error:', e)
     }
-  }
+  }, [token])
 
-  function updateTxForm(field) {
-    return (val) => setTxForm((prev) => ({ ...prev, [field]: val }))
-  }
+  useEffect(() => {
+    loadData()
+    const i = setInterval(loadData, 15000)
+    return () => clearInterval(i)
+  }, [loadData])
 
-  async function handleSendTx(e) {
-    e.preventDefault()
-
-    // Confirmation dialog before broadcasting
-    const confirmed = window.confirm(
-      '¿Confirmas el envio de esta transaccion?\n\n' +
-      'De: ' + (txForm.from || '(sin rellenar)') + '\n' +
-      'Para: ' + (txForm.to || '(sin rellenar)') + '\n' +
-      'Cantidad: ' + (txForm.amount || '0') + ' pesetas\n\n' +
-      'Esta accion es IRREVERSIBLE una vez incluida en un bloque.'
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="page-enter" style={{ maxWidth: '600px', margin: '0 auto', padding: '4rem 1rem', textAlign: 'center' }}>
+        <h2 style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>Mi Cartera</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>Inicia sesión para ver tu portfolio</p>
+        <button onClick={() => onNavigate('/login')} style={{
+          padding: '0.7rem 2rem', background: 'var(--accent)', border: 'none', borderRadius: '8px',
+          color: '#fff', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer',
+        }}>Entrar</button>
+      </div>
     )
-    if (!confirmed) return
+  }
 
-    setSendLoading(true)
-    setSendError(null)
-    setSendSuccess(null)
+  if (!portfolio) {
+    return <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><div className="spinner" /></div>
+  }
+
+  async function handleDeposit() {
+    const amt = parseFloat(depositAmount)
+    if (!amt || amt <= 0) return
+    setDepositLoading(true); setDepositResult(null)
     try {
-      const payload = {
-        from: txForm.from,
-        to: txForm.to,
-        amount: Number(txForm.amount),
-        fee: Number(txForm.fee),
-        nonce: Number(txForm.nonce),
-        sig_r: txForm.sig_r,
-        sig_s: txForm.sig_s,
-      }
-      const result = await sendTx(payload)
-      setSendSuccess(`Transaction broadcast: ${result.tx_id || result.id || JSON.stringify(result)}`)
-    } catch (err) {
-      setSendError('Broadcast failed: ' + err.message)
+      const res = await depositEUR(token, amt)
+      setDepositResult(`+${formatEUR(res.deposited)} depositados. Nuevo saldo: ${formatEUR(res.new_balance)}`)
+      setDepositAmount('')
+      loadData()
+    } catch (e) {
+      setDepositResult('Error: ' + e.message)
     } finally {
-      setSendLoading(false)
+      setDepositLoading(false)
     }
   }
 
-  // CLI sign-offline command (does NOT include private key — user fills that in locally)
-  const cliSignExample = `spc tx sign \\
-  --to ${txForm.to || '<RECIPIENT_ADDRESS>'} \\
-  --amount ${txForm.amount || '<AMOUNT_PESETAS>'} \\
-  --nonce ${txForm.nonce || '<NONCE>'} \\
-  --fee ${txForm.fee || '<FEE>'} \\
-  --key /path/to/keyfile.json`
-
-  const cliBroadcastExample = `spc tx broadcast --signed tx_signed.json`
-
   return (
-    <div className="page-enter" style={styles.page}>
-      <h1 style={styles.pageTitle}>Wallet</h1>
-      <p style={styles.pageSub}>Check balances and broadcast transactions on the SpainCoin network</p>
+    <div className="page-enter" style={{ maxWidth: '800px', margin: '0 auto', padding: '1.5rem 1rem' }}>
 
-      {/* Check Balance */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>Check Balance</div>
-        <div style={styles.cardSub}>Enter a SpainCoin address to view its balance and nonce</div>
+      {/* Total value */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Valor total del portfolio</div>
+        <div style={{ fontSize: '2.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+          {formatEUR(portfolio.total_value_eur)}
+        </div>
+      </div>
 
-        <form onSubmit={handleCheckBalance}>
-          <div style={styles.inputRow}>
-            <div style={styles.inputWrap}>
-              <label htmlFor="check-addr" style={styles.label}>Address</label>
-              <input
-                id="check-addr"
-                style={styles.input}
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="SPC..."
-                autoComplete="off"
-                spellCheck={false}
-                onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
-                onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
-              />
-            </div>
-            <button
-              type="submit"
-              style={{ ...styles.btn, ...(balanceLoading ? styles.btnDisabled : {}) }}
-              disabled={balanceLoading || !address.trim()}
-            >
-              {balanceLoading ? 'Loading...' : 'Check Balance'}
-            </button>
+      {/* EUR balance card */}
+      <div style={{
+        background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)',
+        padding: '1.25rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between',
+        alignItems: 'center', flexWrap: 'wrap', gap: '1rem',
+      }}>
+        <div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>SALDO EUR</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)' }}>{formatEUR(portfolio.eur)}</div>
+        </div>
+        <button onClick={() => setShowDeposit(!showDeposit)} style={{
+          padding: '0.5rem 1.25rem', borderRadius: '8px', border: 'none',
+          background: 'var(--green)', color: '#fff', fontSize: '0.85rem',
+          fontWeight: '600', cursor: 'pointer',
+        }}>
+          {showDeposit ? 'Cerrar' : 'Depositar EUR'}
+        </button>
+      </div>
+
+      {/* Deposit form */}
+      {showDeposit && (
+        <div style={{
+          background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)',
+          padding: '1.25rem', marginBottom: '1rem',
+        }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: '600', marginBottom: '0.75rem' }}>
+            Depositar EUR (testnet)
           </div>
-        </form>
-
-        <p style={styles.balanceNote}>
-          Las consultas de balance son publicas y no requieren ninguna clave.
-        </p>
-
-        {balanceError && <div style={styles.error}>{balanceError}</div>}
-
-        {walletData && (
-          <div style={styles.resultCard}>
-            <div style={styles.resultRow}>
-              <span style={styles.resultLabel}>Address</span>
-              <span className="mono" style={{ ...styles.resultValue, fontSize: '0.8rem' }}>
-                {walletData.address}
-              </span>
-            </div>
-            <div style={styles.resultRow}>
-              <span style={styles.resultLabel}>Balance</span>
-              <span style={{ ...styles.resultValue, color: 'var(--green)', fontSize: '1rem' }}>
-                {walletData.balance_spc != null
-                  ? `${formatNumber(Number(walletData.balance_spc).toFixed(4))} SPC`
-                  : formatSPC(walletData.balance)}
-              </span>
-            </div>
-            <div style={styles.resultRow}>
-              <span style={styles.resultLabel}>Nonce</span>
-              <span style={styles.resultValue}>{walletData.nonce ?? 0}</span>
-            </div>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            {[100, 500, 1000, 5000].map(amt => (
+              <button key={amt} onClick={() => setDepositAmount(String(amt))} style={{
+                flex: 1, padding: '0.4rem', borderRadius: '6px', border: '1px solid var(--border)',
+                background: depositAmount === String(amt) ? 'var(--accent)' : 'var(--bg-secondary)',
+                color: depositAmount === String(amt) ? '#fff' : 'var(--text-secondary)',
+                fontSize: '0.8rem', cursor: 'pointer',
+              }}>{amt}€</button>
+            ))}
           </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)}
+              placeholder="Cantidad en EUR" min="0" style={{
+                flex: 1, padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border)',
+                background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none',
+              }} />
+            <button onClick={handleDeposit} disabled={depositLoading} style={{
+              padding: '0.6rem 1.5rem', borderRadius: '8px', border: 'none',
+              background: 'var(--green)', color: '#fff', fontWeight: '600', cursor: 'pointer',
+              opacity: depositLoading ? 0.5 : 1,
+            }}>{depositLoading ? '...' : 'Depositar'}</button>
+          </div>
+          {depositResult && (
+            <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: depositResult.startsWith('Error') ? 'var(--red)' : 'var(--green)' }}>
+              {depositResult}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Holdings */}
+      <div style={{
+        background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)',
+        overflow: 'hidden', marginBottom: '1.5rem',
+      }}>
+        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+          <h2 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+            Mis activos
+          </h2>
+        </div>
+
+        {(!portfolio.holdings || portfolio.holdings.length === 0) ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            No tienes activos todavía. <button onClick={() => onNavigate('/trade/SPC')} style={{
+              background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: '600',
+            }}>Compra tu primera crypto</button>
+          </div>
+        ) : (
+          portfolio.holdings.map((h, i) => (
+            <div key={h.symbol} style={{
+              display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr',
+              padding: '1rem 1.25rem', alignItems: 'center',
+              borderBottom: i < portfolio.holdings.length - 1 ? '1px solid var(--border)' : 'none',
+            }}>
+              {/* Coin */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  background: coinColors[h.symbol] || '#666',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: '700', fontSize: '0.7rem', color: '#fff', flexShrink: 0,
+                }}>{h.symbol.slice(0, 1)}</div>
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{h.symbol}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{h.name}</div>
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  {formatAmount(h.amount, h.symbol)}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                  @ {formatEUR(h.price)}
+                </div>
+              </div>
+
+              {/* Value */}
+              <div style={{ textAlign: 'right', fontWeight: '600', fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                {formatEUR(h.value_eur)}
+              </div>
+
+              {/* Action */}
+              <div style={{ textAlign: 'right' }}>
+                <button onClick={() => onNavigate(`/trade/${h.symbol}`)} style={{
+                  padding: '0.3rem 0.65rem', borderRadius: '6px', border: 'none',
+                  background: 'var(--accent)', color: '#fff', fontSize: '0.75rem',
+                  fontWeight: '600', cursor: 'pointer',
+                }}>Operar</button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {/* Send SPC */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          Send SPC
-          <span style={styles.advancedBadge}>Advanced Users</span>
+      {/* Recent trades */}
+      {trades.length > 0 && (
+        <div style={{
+          background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)',
+          padding: '1.25rem',
+        }}>
+          <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
+            Últimas operaciones
+          </h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+            <thead>
+              <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>
+                <th style={{ textAlign: 'left', padding: '0.5rem 0', fontWeight: '500' }}>Tipo</th>
+                <th style={{ textAlign: 'left', padding: '0.5rem 0', fontWeight: '500' }}>Par</th>
+                <th style={{ textAlign: 'right', padding: '0.5rem 0', fontWeight: '500' }}>Cantidad</th>
+                <th style={{ textAlign: 'right', padding: '0.5rem 0', fontWeight: '500' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.slice(0, 10).map((t, i) => (
+                <tr key={t.id || i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '0.5rem 0', fontWeight: '600', color: t.type === 'buy' ? 'var(--green)' : 'var(--red)' }}>
+                    {t.type === 'buy' ? 'Compra' : 'Venta'}
+                  </td>
+                  <td style={{ padding: '0.5rem 0', color: 'var(--text-secondary)' }}>{t.pair}</td>
+                  <td style={{ textAlign: 'right', padding: '0.5rem 0', color: 'var(--text-primary)' }}>
+                    {formatAmount(t.amount || t.amount_spc, t.symbol || 'SPC')}
+                  </td>
+                  <td style={{ textAlign: 'right', padding: '0.5rem 0', color: 'var(--text-primary)' }}>{formatEUR(t.total_eur)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div style={styles.cardSub}>Broadcast a signed transaction directly to the network</div>
+      )}
 
-        {/* Prominent red security warning */}
-        <div style={styles.securityAlert}>
-          <span style={styles.securityAlertTitle}>
-            NUNCA introduzcas tu clave privada en ningun sitio web.
-          </span>
-          Usa siempre el CLI para firmar transacciones offline. Tu clave privada nunca debe salir
-          de tu dispositivo. Si alguien te pide tu clave privada, es una estafa.
-          <br /><br />
-          <strong>Flujo correcto:</strong> firma offline con el CLI &rarr; copia los valores R y S &rarr; pegalos aqui.
-        </div>
-
-        <div style={styles.warning}>
-          <strong>Security notice:</strong> Never enter your private key on a website you do not fully trust and control.
-          Use the CLI tool to sign transactions locally, then broadcast the signed payload here.
-          Transactions require pre-computed ECDSA signatures (R, S values).
-        </div>
-
-        <form onSubmit={handleSendTx}>
-          <div style={styles.formGrid}>
-            <InputField label="From Address" id="tx-from" value={txForm.from} onChange={updateTxForm('from')} placeholder="SPC..." mono />
-            <InputField label="To Address" id="tx-to" value={txForm.to} onChange={updateTxForm('to')} placeholder="SPC..." mono />
-            <InputField label="Amount (pesetas)" id="tx-amount" value={txForm.amount} onChange={updateTxForm('amount')} placeholder="e.g. 1000000000000000000" />
-            <InputField label="Fee (pesetas)" id="tx-fee" value={txForm.fee} onChange={updateTxForm('fee')} placeholder="e.g. 21000" />
-            <InputField label="Nonce" id="tx-nonce" value={txForm.nonce} onChange={updateTxForm('nonce')} placeholder="e.g. 1" />
-          </div>
-          <div style={styles.formGrid}>
-            <InputField label="Signature R (hex)" id="tx-sigr" value={txForm.sig_r} onChange={updateTxForm('sig_r')} placeholder="0x..." mono />
-            <InputField label="Signature S (hex)" id="tx-sigs" value={txForm.sig_s} onChange={updateTxForm('sig_s')} placeholder="0x..." mono />
-          </div>
-
-          <button
-            type="submit"
-            style={{
-              ...styles.btn,
-              marginTop: '0.5rem',
-              ...(sendLoading ? styles.btnDisabled : {}),
-            }}
-            disabled={sendLoading}
-          >
-            {sendLoading ? 'Broadcasting...' : 'Broadcast Transaction'}
-          </button>
-        </form>
-
-        {sendError && <div style={styles.error}>{sendError}</div>}
-        {sendSuccess && <div style={styles.success}>{sendSuccess}</div>}
-
-        <div style={styles.cliBox}>
-          <span style={styles.cliLabel}>Paso 1 — Firmar offline (recomendado)</span>
-          <code style={styles.cliCode}>{cliSignExample}</code>
-          <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '0.75rem 0' }} />
-          <span style={styles.cliLabel}>Paso 2 — Broadcast del fichero firmado</span>
-          <code style={styles.cliCode}>{cliBroadcastExample}</code>
-        </div>
+      <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+        Testnet — fondos virtuales sin valor real
       </div>
     </div>
   )

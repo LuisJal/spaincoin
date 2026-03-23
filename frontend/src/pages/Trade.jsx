@@ -1,76 +1,84 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../auth/useAuth.jsx'
 import PriceChart from '../components/PriceChart.jsx'
-import { getTicker, getPriceHistory, buySPC, sellSPC, getTradeBalance, getTradeHistory } from '../api/client.js'
+import { getMarketTable, buyAsset, sellAsset, getPortfolio, getTradeHistory } from '../api/client.js'
 
-const formatEUR = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
-const formatSPC = (n) => n >= 1 ? n.toLocaleString('es-ES', { maximumFractionDigits: 4 }) : n.toFixed(6)
+const formatEUR = (n) => n >= 1000
+  ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+  : new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
+const formatAmount = (n, sym) => {
+  if (sym === 'BTC') return n.toFixed(8)
+  if (['ETH', 'BNB', 'SOL', 'AVAX'].includes(sym)) return n.toFixed(6)
+  return n >= 1 ? n.toLocaleString('es-ES', { maximumFractionDigits: 4 }) : n.toFixed(6)
+}
 
-export default function Trade({ onNavigate }) {
+function generateChartData(price, change, seed) {
+  const points = 80
+  const data = []
+  for (let i = 0; i < points; i++) {
+    const t = i / points
+    const w = Math.sin(i / 4 + seed * 7) * 0.012 + Math.sin(i / 9 + seed * 3) * 0.008
+    const trend = (change / 100) * t
+    const p = price * (1 + w + trend - (change / 100) * 0.5)
+    data.push({ price: p, height: i })
+  }
+  return data
+}
+
+export default function Trade({ symbol = 'SPC', onNavigate }) {
   const { user, token } = useAuth()
-  const [ticker, setTicker] = useState(null)
-  const [chartData, setChartData] = useState([])
-  const [chartRange, setChartRange] = useState('24h')
-  const [tab, setTab] = useState('buy') // 'buy' | 'sell'
+  const [coinData, setCoinData] = useState(null)
+  const [allCoins, setAllCoins] = useState([])
+  const [tab, setTab] = useState('buy')
   const [amount, setAmount] = useState('')
-  const [balance, setBalance] = useState({ eur: 0, spc: 0 })
+  const [portfolio, setPortfolio] = useState({ eur: 0, holdings: [] })
   const [trades, setTrades] = useState([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
 
-  const loadData = useCallback(async () => {
+  const loadMarket = useCallback(async () => {
     try {
-      const t = await getTicker()
-      setTicker(t)
-      const h = await getPriceHistory(120, chartRange)
-      setChartData(h)
+      const table = await getMarketTable()
+      setAllCoins(table)
+      const coin = table.find(c => c.symbol === symbol) || table[0]
+      setCoinData(coin)
     } catch (e) {
-      console.error('Failed to load ticker:', e)
+      console.error('Market load error:', e)
     }
-  }, [chartRange])
+  }, [symbol])
 
   const loadUserData = useCallback(async () => {
     if (!token) return
     try {
-      const [b, t] = await Promise.all([
-        getTradeBalance(token),
-        getTradeHistory(token),
-      ])
-      setBalance(b)
-      setTrades(t)
+      const [p, t] = await Promise.all([getPortfolio(token), getTradeHistory(token)])
+      setPortfolio(p)
+      setTrades(t.filter(tr => !tr.symbol || tr.symbol === symbol || tr.pair === symbol + '/EUR'))
     } catch (e) {
-      console.error('Failed to load user data:', e)
+      console.error('User data error:', e)
     }
-  }, [token])
+  }, [token, symbol])
 
-  useEffect(() => {
-    loadData()
-    const interval = setInterval(loadData, 10000)
-    return () => clearInterval(interval)
-  }, [loadData])
+  useEffect(() => { loadMarket(); const i = setInterval(loadMarket, 10000); return () => clearInterval(i) }, [loadMarket])
+  useEffect(() => { loadUserData() }, [loadUserData])
+  useEffect(() => { setAmount(''); setResult(null); setError(null) }, [symbol])
 
-  useEffect(() => {
-    loadUserData()
-  }, [loadUserData])
-
+  const price = coinData?.price || 0
+  const change = coinData?.change_24h || 0
   const amountNum = parseFloat(amount) || 0
-  const price = ticker?.price || 0
-  const totalEUR = tab === 'buy' ? amountNum * price : amountNum * price
+  const totalEUR = amountNum * price
+  const holding = portfolio.holdings?.find(h => h.symbol === symbol)
+  const holdingAmount = holding?.amount || 0
+  const changeColor = change >= 0 ? 'var(--green)' : 'var(--red)'
+  const chartData = coinData ? generateChartData(price, change, allCoins.findIndex(c => c.symbol === symbol)) : []
 
   async function handleTrade() {
     if (amountNum <= 0) return
-    setLoading(true)
-    setError(null)
-    setResult(null)
-
+    setLoading(true); setError(null); setResult(null)
     try {
-      let res
-      if (tab === 'buy') {
-        res = await buySPC(token, amountNum)
-      } else {
-        res = await sellSPC(token, amountNum)
-      }
+      const res = tab === 'buy'
+        ? await buyAsset(token, symbol, amountNum)
+        : await sellAsset(token, symbol, amountNum)
       setResult(res)
       setAmount('')
       loadUserData()
@@ -81,33 +89,48 @@ export default function Trade({ onNavigate }) {
     }
   }
 
-  const changeColor = (ticker?.change_24h || 0) >= 0 ? 'var(--green)' : 'var(--red)'
-
   return (
     <div className="page-enter" style={{ maxWidth: '800px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+
+      {/* Symbol selector */}
+      <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        {allCoins.map(c => (
+          <button
+            key={c.symbol}
+            onClick={() => onNavigate(`/trade/${c.symbol}`)}
+            style={{
+              padding: '0.3rem 0.6rem', borderRadius: '6px', border: 'none', cursor: 'pointer',
+              fontSize: '0.75rem', fontWeight: symbol === c.symbol ? '700' : '400',
+              background: symbol === c.symbol ? 'var(--accent)' : 'var(--bg-secondary)',
+              color: symbol === c.symbol ? '#fff' : 'var(--text-secondary)',
+            }}
+          >
+            {c.symbol}
+          </button>
+        ))}
+      </div>
 
       {/* Price header */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap' }}>
           <h1 style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
-            SPC/EUR
+            {symbol}/EUR
           </h1>
-          {ticker && (
+          {coinData && (
             <>
               <span style={{ fontSize: '2rem', fontWeight: '600', color: 'var(--text-primary)' }}>
-                {formatEUR(ticker.price)}
+                {formatEUR(price)}
               </span>
               <span style={{ fontSize: '1rem', fontWeight: '600', color: changeColor }}>
-                {ticker.change_24h >= 0 ? '+' : ''}{ticker.change_24h}%
+                {change >= 0 ? '+' : ''}{change}%
               </span>
             </>
           )}
         </div>
-        {ticker && (
+        {coinData && (
           <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            <span>24h High: {formatEUR(ticker.high_24h)}</span>
-            <span>24h Low: {formatEUR(ticker.low_24h)}</span>
-            <span>Vol: {formatEUR(ticker.volume_24h)}</span>
+            <span>Vol: {formatEUR(coinData.volume)}</span>
+            <span>MCap: {formatEUR(coinData.market_cap)}</span>
           </div>
         )}
       </div>
@@ -117,22 +140,6 @@ export default function Trade({ onNavigate }) {
         background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)',
         padding: '1rem', marginBottom: '1.5rem',
       }}>
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-          {['1h', '24h', '7d', '30d'].map(r => (
-            <button
-              key={r}
-              onClick={() => setChartRange(r)}
-              style={{
-                padding: '0.3rem 0.7rem', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                fontSize: '0.75rem', fontWeight: chartRange === r ? '600' : '400',
-                background: chartRange === r ? 'var(--accent)' : 'var(--bg-secondary)',
-                color: chartRange === r ? '#fff' : 'var(--text-secondary)',
-              }}
-            >
-              {r.toUpperCase()}
-            </button>
-          ))}
-        </div>
         <PriceChart data={chartData} width={760} height={220} color={changeColor} />
       </div>
 
@@ -144,42 +151,29 @@ export default function Trade({ onNavigate }) {
         {!user ? (
           <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>Inicia sesión para operar</p>
-            <button
-              onClick={() => onNavigate('/login')}
-              style={{
-                padding: '0.6rem 2rem', background: 'var(--accent)', border: 'none', borderRadius: '8px',
-                color: '#fff', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer',
-              }}
-            >
-              Entrar
-            </button>
+            <button onClick={() => onNavigate('/login')} style={{
+              padding: '0.6rem 2rem', background: 'var(--accent)', border: 'none', borderRadius: '8px',
+              color: '#fff', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer',
+            }}>Entrar</button>
           </div>
         ) : (
           <>
             {/* Tabs */}
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
-              <button
-                onClick={() => { setTab('buy'); setResult(null); setError(null) }}
+              <button onClick={() => { setTab('buy'); setResult(null); setError(null) }}
                 style={{
                   flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
                   fontSize: '0.95rem', fontWeight: '600',
                   background: tab === 'buy' ? 'var(--green)' : 'var(--bg-secondary)',
                   color: tab === 'buy' ? '#fff' : 'var(--text-secondary)',
-                }}
-              >
-                Comprar
-              </button>
-              <button
-                onClick={() => { setTab('sell'); setResult(null); setError(null) }}
+                }}>Comprar</button>
+              <button onClick={() => { setTab('sell'); setResult(null); setError(null) }}
                 style={{
                   flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
                   fontSize: '0.95rem', fontWeight: '600',
                   background: tab === 'sell' ? 'var(--red)' : 'var(--bg-secondary)',
                   color: tab === 'sell' ? '#fff' : 'var(--text-secondary)',
-                }}
-              >
-                Vender
-              </button>
+                }}>Vender</button>
             </div>
 
             {/* Balance */}
@@ -189,92 +183,70 @@ export default function Trade({ onNavigate }) {
             }}>
               <span>Balance disponible:</span>
               <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
-                {tab === 'buy' ? formatEUR(balance.eur) : `${formatSPC(balance.spc)} SPC`}
+                {tab === 'buy' ? formatEUR(portfolio.eur) : `${formatAmount(holdingAmount, symbol)} ${symbol}`}
               </span>
             </div>
 
             {/* Amount input */}
             <div style={{ marginBottom: '0.75rem' }}>
               <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>
-                Cantidad (SPC)
+                Cantidad ({symbol})
               </label>
-              <input
-                type="number"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                placeholder="0.00" min="0" step="any"
                 style={{
                   width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px',
                   border: '1px solid var(--border)', background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: '600',
-                  outline: 'none',
-                }}
-              />
+                  color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: '600', outline: 'none',
+                }} />
             </div>
 
-            {/* EUR equivalent */}
             {amountNum > 0 && (
               <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', textAlign: 'right' }}>
                 = <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{formatEUR(totalEUR)}</span>
               </div>
             )}
 
-            {/* Quick amounts */}
+            {/* Quick amounts in EUR */}
             <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem' }}>
-              {[10, 50, 100, 500].map(q => (
-                <button
-                  key={q}
-                  onClick={() => setAmount(String(q))}
+              {[10, 50, 100, 500].map(eur => (
+                <button key={eur} onClick={() => price > 0 && setAmount(String(Math.floor((eur / price) * 1000000) / 1000000))}
                   style={{
                     flex: 1, padding: '0.35rem', borderRadius: '6px', border: '1px solid var(--border)',
                     background: 'var(--bg-secondary)', color: 'var(--text-secondary)',
                     fontSize: '0.75rem', cursor: 'pointer',
-                  }}
-                >
-                  {q} SPC
-                </button>
+                  }}>{eur}€</button>
               ))}
-              <button
-                onClick={() => {
-                  if (tab === 'buy' && price > 0) setAmount(String(Math.floor((balance.eur / price) * 100) / 100))
-                  else setAmount(String(balance.spc))
-                }}
-                style={{
-                  flex: 1, padding: '0.35rem', borderRadius: '6px', border: '1px solid var(--border)',
-                  background: 'var(--bg-secondary)', color: 'var(--accent)',
-                  fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer',
-                }}
-              >
-                Max
-              </button>
+              <button onClick={() => {
+                if (tab === 'buy' && price > 0) setAmount(String(Math.floor((portfolio.eur / price) * 1000000) / 1000000))
+                else setAmount(String(holdingAmount))
+              }} style={{
+                flex: 1, padding: '0.35rem', borderRadius: '6px', border: '1px solid var(--border)',
+                background: 'var(--bg-secondary)', color: 'var(--accent)',
+                fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer',
+              }}>Max</button>
             </div>
 
-            {/* Submit */}
-            <button
-              onClick={handleTrade}
-              disabled={loading || amountNum <= 0}
+            <button onClick={handleTrade} disabled={loading || amountNum <= 0}
               style={{
                 width: '100%', padding: '0.75rem', borderRadius: '8px', border: 'none',
                 cursor: loading || amountNum <= 0 ? 'not-allowed' : 'pointer',
                 fontSize: '1rem', fontWeight: '700',
-                background: tab === 'buy' ? 'var(--green)' : 'var(--red)',
-                color: '#fff',
+                background: tab === 'buy' ? 'var(--green)' : 'var(--red)', color: '#fff',
                 opacity: loading || amountNum <= 0 ? 0.5 : 1,
-              }}
-            >
-              {loading ? 'Procesando...' : tab === 'buy' ? `Comprar ${amountNum > 0 ? formatSPC(amountNum) : ''} SPC` : `Vender ${amountNum > 0 ? formatSPC(amountNum) : ''} SPC`}
+              }}>
+              {loading ? 'Procesando...' : tab === 'buy'
+                ? `Comprar ${amountNum > 0 ? formatAmount(amountNum, symbol) : ''} ${symbol}`
+                : `Vender ${amountNum > 0 ? formatAmount(amountNum, symbol) : ''} ${symbol}`}
             </button>
 
-            {/* Result */}
             {result && (
               <div style={{
                 marginTop: '1rem', padding: '0.75rem', borderRadius: '8px',
                 background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)',
                 fontSize: '0.85rem', color: 'var(--green)',
               }}>
-                {result.type === 'buy' ? 'Compra' : 'Venta'} completada: {formatSPC(result.amount_spc)} SPC a {formatEUR(result.price_eur)} = {formatEUR(result.total_eur)}
+                {result.type === 'buy' ? 'Compra' : 'Venta'} completada: {formatAmount(result.amount, symbol)} {symbol} a {formatEUR(result.price_eur)} = {formatEUR(result.total_eur)}
               </div>
             )}
             {error && (
@@ -282,9 +254,7 @@ export default function Trade({ onNavigate }) {
                 marginTop: '1rem', padding: '0.75rem', borderRadius: '8px',
                 background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
                 fontSize: '0.85rem', color: 'var(--red)',
-              }}>
-                {error}
-              </div>
+              }}>{error}</div>
             )}
           </>
         )}
@@ -303,29 +273,22 @@ export default function Trade({ onNavigate }) {
             <thead>
               <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>
                 <th style={{ textAlign: 'left', padding: '0.5rem 0.25rem', fontWeight: '500' }}>Tipo</th>
+                <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontWeight: '500' }}>Par</th>
                 <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontWeight: '500' }}>Cantidad</th>
-                <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontWeight: '500' }}>Precio</th>
                 <th style={{ textAlign: 'right', padding: '0.5rem 0.25rem', fontWeight: '500' }}>Total</th>
               </tr>
             </thead>
             <tbody>
               {trades.slice(0, 20).map((t, i) => (
                 <tr key={t.id || i} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{
-                    padding: '0.5rem 0.25rem', fontWeight: '600',
-                    color: t.type === 'buy' ? 'var(--green)' : 'var(--red)',
-                  }}>
+                  <td style={{ padding: '0.5rem 0.25rem', fontWeight: '600', color: t.type === 'buy' ? 'var(--green)' : 'var(--red)' }}>
                     {t.type === 'buy' ? 'Compra' : 'Venta'}
                   </td>
+                  <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem', color: 'var(--text-secondary)' }}>{t.pair}</td>
                   <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem', color: 'var(--text-primary)' }}>
-                    {formatSPC(t.amount_spc)} SPC
+                    {formatAmount(t.amount || t.amount_spc, t.symbol || 'SPC')}
                   </td>
-                  <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem', color: 'var(--text-secondary)' }}>
-                    {formatEUR(t.price_eur)}
-                  </td>
-                  <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem', color: 'var(--text-primary)' }}>
-                    {formatEUR(t.total_eur)}
-                  </td>
+                  <td style={{ textAlign: 'right', padding: '0.5rem 0.25rem', color: 'var(--text-primary)' }}>{formatEUR(t.total_eur)}</td>
                 </tr>
               ))}
             </tbody>
@@ -333,12 +296,8 @@ export default function Trade({ onNavigate }) {
         </div>
       )}
 
-      {/* Testnet badge */}
-      <div style={{
-        textAlign: 'center', marginTop: '1.5rem', padding: '0.5rem',
-        fontSize: '0.75rem', color: 'var(--text-secondary)',
-      }}>
-        Testnet — los fondos no tienen valor real. Cada usuario recibe 1.000€ virtuales al registrarse.
+      <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+        Testnet — los fondos no tienen valor real
       </div>
     </div>
   )

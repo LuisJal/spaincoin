@@ -6,7 +6,7 @@ const navItems = [
   { label: 'Trading', page: '/trade' },
   { label: 'Mercado', page: '/market' },
   { label: 'Explorer', page: '/explorer' },
-  { label: 'Wallet', page: '/wallet' },
+  { label: 'Cartera', page: '/wallet' },
 ]
 
 function LogoSVG({ size = 32 }) {

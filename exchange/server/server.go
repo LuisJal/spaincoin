@@ -150,6 +150,8 @@ func (s *Server) registerRoutes() {
 		mux.HandleFunc("/api/trade/sell", auth.AuthMiddleware(handlers.HandleSell(nodeClient, sim, s.userDB, s.tradeDB)))
 		mux.HandleFunc("/api/trade/history", auth.AuthMiddleware(handlers.HandleTradeHistory(s.tradeDB)))
 		mux.HandleFunc("/api/trade/balance", auth.AuthMiddleware(handlers.HandleTradeBalance(nodeClient, s.userDB, s.tradeDB)))
+		mux.HandleFunc("/api/trade/deposit-eur", auth.AuthMiddleware(handlers.HandleDepositEUR(s.tradeDB)))
+		mux.HandleFunc("/api/trade/portfolio", auth.AuthMiddleware(handlers.HandlePortfolio(nodeClient, sim, s.userDB, s.tradeDB)))
 	}
 
 	handler := s.rateLimitMiddleware(

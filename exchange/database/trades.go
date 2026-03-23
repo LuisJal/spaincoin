@@ -9,18 +9,21 @@ import (
 )
 
 var (
-	bucketTrades      = []byte("trades")
-	bucketUserTrades  = []byte("user_trades")
-	bucketEURBalances = []byte("eur_balances")
+	bucketTrades         = []byte("trades")
+	bucketUserTrades     = []byte("user_trades")
+	bucketEURBalances    = []byte("eur_balances")
+	bucketCryptoBalances = []byte("crypto_balances")
 )
 
 // TradeRecord represents a completed trade (buy or sell).
 type TradeRecord struct {
 	ID        string  `json:"id"`
 	UserID    string  `json:"user_id"`
-	Type      string  `json:"type"` // "buy" or "sell"
-	Pair      string  `json:"pair"` // "SPC/EUR"
-	AmountSPC float64 `json:"amount_spc"`
+	Type      string  `json:"type"`   // "buy" or "sell"
+	Pair      string  `json:"pair"`   // "SPC/EUR", "BTC/EUR", etc.
+	Symbol    string  `json:"symbol"` // "SPC", "BTC", etc.
+	Amount    float64 `json:"amount"`
+	AmountSPC float64 `json:"amount_spc"` // backward compat
 	PriceEUR  float64 `json:"price_eur"`
 	TotalEUR  float64 `json:"total_eur"`
 	Status    string  `json:"status"` // "completed"
@@ -42,6 +45,9 @@ func NewTradeDB(db *bbolt.DB) (*TradeDB, error) {
 			return err
 		}
 		if _, err := tx.CreateBucketIfNotExists(bucketEURBalances); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists(bucketCryptoBalances); err != nil {
 			return err
 		}
 		return nil
@@ -202,4 +208,82 @@ func (t *TradeDB) InitUserBalance(userID string, initialEUR float64) error {
 // GenerateTradeID creates a unique trade ID from timestamp and user.
 func GenerateTradeID(userID string) string {
 	return fmt.Sprintf("trade_%d_%s", time.Now().UnixNano(), userID[:8])
+}
+
+// ---------------------------------------------------------------------------
+// Crypto balances (simulated holdings for testnet)
+// ---------------------------------------------------------------------------
+
+// GetCryptoBalance returns a user's balance for a specific symbol.
+func (t *TradeDB) GetCryptoBalance(userID, symbol string) (float64, error) {
+	var balance float64
+	err := t.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketCryptoBalances)
+		data := b.Get([]byte(userID + ":" + symbol))
+		if data == nil {
+			return nil
+		}
+		return json.Unmarshal(data, &balance)
+	})
+	return balance, err
+}
+
+// GetAllCryptoBalances returns all crypto holdings for a user.
+func (t *TradeDB) GetAllCryptoBalances(userID string) (map[string]float64, error) {
+	result := make(map[string]float64)
+	err := t.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketCryptoBalances)
+		c := b.Cursor()
+		prefix := []byte(userID + ":")
+		for k, v := c.Seek(prefix); k != nil && len(k) >= len(prefix) && string(k[:len(prefix)]) == string(prefix); k, v = c.Next() {
+			symbol := string(k[len(prefix):])
+			var amount float64
+			if err := json.Unmarshal(v, &amount); err == nil && amount > 0 {
+				result[symbol] = amount
+			}
+		}
+		return nil
+	})
+	return result, err
+}
+
+// CreditCrypto adds crypto to a user's holdings.
+func (t *TradeDB) CreditCrypto(userID, symbol string, amount float64) error {
+	return t.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketCryptoBalances)
+		key := []byte(userID + ":" + symbol)
+		var current float64
+		data := b.Get(key)
+		if data != nil {
+			json.Unmarshal(data, &current)
+		}
+		current += amount
+		newData, err := json.Marshal(current)
+		if err != nil {
+			return err
+		}
+		return b.Put(key, newData)
+	})
+}
+
+// DebitCrypto subtracts crypto from a user's holdings.
+func (t *TradeDB) DebitCrypto(userID, symbol string, amount float64) error {
+	return t.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketCryptoBalances)
+		key := []byte(userID + ":" + symbol)
+		var current float64
+		data := b.Get(key)
+		if data != nil {
+			json.Unmarshal(data, &current)
+		}
+		if current < amount {
+			return fmt.Errorf("insufficient %s balance: have %.6f, need %.6f", symbol, current, amount)
+		}
+		current -= amount
+		newData, err := json.Marshal(current)
+		if err != nil {
+			return err
+		}
+		return b.Put(key, newData)
+	})
 }

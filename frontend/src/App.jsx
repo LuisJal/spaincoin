@@ -41,7 +41,9 @@ function getPageFromHash() {
   if (blockMatch) return { page: '/block', param: Number(blockMatch[1]) }
 
   if (path === '/explorer') return { page: '/explorer' }
-  if (path === '/trade') return { page: '/trade' }
+  const tradeMatch = path.match(/^\/trade\/([A-Z]+)$/)
+  if (tradeMatch) return { page: '/trade', param: tradeMatch[1] }
+  if (path === '/trade') return { page: '/trade', param: 'SPC' }
   if (path === '/market') return { page: '/market' }
   if (path === '/wallet') return { page: '/wallet' }
   if (path === '/login') return { page: '/login' }
@@ -94,11 +96,11 @@ function AppInner() {
       case '/explorer':
         return <Explorer onNavigate={handleNavigate} />
       case '/trade':
-        return <Trade onNavigate={handleNavigate} />
+        return <Trade symbol={route.param || 'SPC'} onNavigate={handleNavigate} />
       case '/market':
         return <Market onNavigate={handleNavigate} />
       case '/wallet':
-        return <Wallet />
+        return <Wallet onNavigate={handleNavigate} />
       case '/block':
         return <BlockDetail height={route.param} onNavigate={handleNavigate} />
       case '/login':

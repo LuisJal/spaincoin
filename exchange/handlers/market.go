@@ -175,8 +175,8 @@ type marketTableEntry struct {
 	Supply    float64 `json:"supply"`
 }
 
-// externalCoin defines a reference crypto for the market overview.
-type externalCoin struct {
+// ExternalCoin defines a reference crypto for the market overview.
+type ExternalCoin struct {
 	Symbol    string
 	Name      string
 	BasePrice float64
@@ -184,7 +184,8 @@ type externalCoin struct {
 	WaveDiv   float64 // unique wave divisor per coin
 }
 
-var referenceCryptos = []externalCoin{
+// ReferenceCryptos is the list of supported reference cryptos.
+var ReferenceCryptos = []ExternalCoin{
 	{"BTC", "Bitcoin", 82000.0, 19_800_000, 97},
 	{"ETH", "Ethereum", 1850.0, 120_500_000, 73},
 	{"BNB", "BNB", 610.0, 145_900_000, 61},
@@ -195,6 +196,33 @@ var referenceCryptos = []externalCoin{
 	{"DOT", "Polkadot", 4.20, 1_400_000_000, 59},
 	{"AVAX", "Avalanche", 20.0, 400_000_000, 47},
 	{"MATIC", "Polygon", 0.22, 10_000_000_000, 37},
+}
+
+// GetSimulatedPrice returns the simulated price for any supported symbol at a given block height.
+// Returns (price, true) if found, or (0, false) if the symbol is not supported.
+func GetSimulatedPrice(symbol string, sim *market.Simulator, height uint64) (float64, bool) {
+	if symbol == "SPC" {
+		return sim.PriceAtHeight(height), true
+	}
+	h := float64(height)
+	for _, c := range ReferenceCryptos {
+		if c.Symbol == symbol {
+			wave1 := math.Sin(h/c.WaveDiv) * 0.02
+			wave2 := math.Sin(h/(c.WaveDiv*2.7)) * 0.015
+			price := c.BasePrice * (1 + wave1 + wave2)
+			return math.Round(price*100) / 100, true
+		}
+	}
+	return 0, false
+}
+
+// SupportedSymbols returns all tradeable symbols.
+func SupportedSymbols() []string {
+	symbols := []string{"SPC"}
+	for _, c := range ReferenceCryptos {
+		symbols = append(symbols, c.Symbol)
+	}
+	return symbols
 }
 
 // HandleMarketTable handles GET /api/market/table.
@@ -227,7 +255,7 @@ func HandleMarketTable(nodeClient *client.NodeClient, sim *market.Simulator) htt
 
 		// Reference cryptos with simulated variation
 		h := float64(nodeStatus.Height)
-		for _, c := range referenceCryptos {
+		for _, c := range ReferenceCryptos {
 			// Each coin has unique wave pattern seeded by its WaveDiv
 			wave1 := math.Sin(h/c.WaveDiv) * 0.02
 			wave2 := math.Sin(h/(c.WaveDiv*2.7)) * 0.015

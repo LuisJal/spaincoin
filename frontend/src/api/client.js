@@ -117,15 +117,32 @@ export async function getMe(token) {
 }
 
 // Trading
-export async function buySPC(token, amountSPC, amountEUR) {
-  const body = {}
-  if (amountSPC) body.amount_spc = amountSPC
+export async function buyAsset(token, symbol, amount, amountEUR) {
+  const body = { symbol }
+  if (amount) body.amount = amount
   else if (amountEUR) body.amount_eur = amountEUR
   return apiAuthPost('/api/trade/buy', body, token)
 }
 
+export async function sellAsset(token, symbol, amount) {
+  return apiAuthPost('/api/trade/sell', { symbol, amount }, token)
+}
+
+// Backward compat
+export async function buySPC(token, amountSPC, amountEUR) {
+  return buyAsset(token, 'SPC', amountSPC, amountEUR)
+}
+
 export async function sellSPC(token, amountSPC) {
-  return apiAuthPost('/api/trade/sell', { amount_spc: amountSPC }, token)
+  return sellAsset(token, 'SPC', amountSPC)
+}
+
+export async function depositEUR(token, amount) {
+  return apiAuthPost('/api/trade/deposit-eur', { amount }, token)
+}
+
+export async function getPortfolio(token) {
+  return apiAuthFetch('/api/trade/portfolio', token)
 }
 
 export async function getTradeHistory(token) {

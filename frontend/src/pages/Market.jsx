@@ -186,7 +186,7 @@ export default function Market({ onNavigate }) {
               {/* Trade button */}
               <div style={{ textAlign: 'right' }}>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onNavigate('/trade') }}
+                  onClick={(e) => { e.stopPropagation(); onNavigate(`/trade/${t.symbol}`) }}
                   style={{
                     padding: '0.35rem 0.75rem', borderRadius: '6px', border: 'none',
                     background: 'var(--accent)', color: '#fff', fontSize: '0.75rem',
