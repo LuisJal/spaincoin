@@ -51,8 +51,16 @@ var defaultTiers = []priceTier{
 // ==========================================
 
 type TelegramUpdate struct {
-	UpdateID int64            `json:"update_id"`
-	Message  *TelegramMessage `json:"message"`
+	UpdateID      int64             `json:"update_id"`
+	Message       *TelegramMessage  `json:"message"`
+	CallbackQuery *TelegramCallback `json:"callback_query"`
+}
+
+type TelegramCallback struct {
+	ID      string           `json:"id"`
+	From    *TelegramUser    `json:"from"`
+	Message *TelegramMessage `json:"message"`
+	Data    string           `json:"data"`
 }
 
 type TelegramMessage struct {
@@ -149,7 +157,9 @@ func main() {
 			continue
 		}
 		for _, u := range updates {
-			if u.Message != nil {
+			if u.CallbackQuery != nil {
+				handleCallback(client, u.CallbackQuery)
+			} else if u.Message != nil {
 				handleMessage(client, u.Message)
 			}
 			offset = u.UpdateID + 1
@@ -179,9 +189,44 @@ func sendMessage(client *http.Client, chatID int64, text string) {
 	http.Post(url, "application/json", strings.NewReader(body))
 }
 
+func sendMessageWithButtons(client *http.Client, chatID int64, text string, buttons [][]InlineButton) {
+	url := fmt.Sprintf("%s%s/sendMessage", telegramAPI, botToken)
+	kb, _ := json.Marshal(map[string]interface{}{"inline_keyboard": buttons})
+	body := fmt.Sprintf(`{"chat_id":%d,"text":%s,"parse_mode":"HTML","reply_markup":%s}`, chatID, jsonStr(text), string(kb))
+	http.Post(url, "application/json", strings.NewReader(body))
+}
+
+func answerCallback(client *http.Client, callbackID string) {
+	url := fmt.Sprintf("%s%s/answerCallbackQuery", telegramAPI, botToken)
+	body := fmt.Sprintf(`{"callback_query_id":"%s"}`, callbackID)
+	http.Post(url, "application/json", strings.NewReader(body))
+}
+
+// InlineButton for Telegram inline keyboard.
+type InlineButton struct {
+	Text string `json:"text"`
+	Data string `json:"callback_data,omitempty"`
+	URL  string `json:"url,omitempty"`
+}
+
+func mainMenuButtons() [][]InlineButton {
+	return [][]InlineButton{
+		{{Text: "🔐 Crear Wallet", Data: "wallet"}, {Text: "👛 Mi Saldo", Data: "saldo"}},
+		{{Text: "💶 Comprar SPC", Data: "comprar"}, {Text: "💰 Vender SPC", Data: "vender"}},
+		{{Text: "📊 Precio", Data: "precio"}, {Text: "📖 Cómo comprar", Data: "como"}},
+		{{Text: "🌐 Web", URL: "https://spaincoin.es"}},
+	}
+}
+
 func jsonStr(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+func deleteMessage(client *http.Client, chatID int64, messageID int64) {
+	url := fmt.Sprintf("%s%s/deleteMessage", telegramAPI, botToken)
+	body := fmt.Sprintf(`{"chat_id":%d,"message_id":%d}`, chatID, messageID)
+	http.Post(url, "application/json", strings.NewReader(body))
 }
 
 func isAdmin(chatID int64) bool {
@@ -192,6 +237,85 @@ func isAdmin(chatID int64) bool {
 func isSuper(chatID int64) bool {
 	role, ok := adminIDs[chatID]
 	return ok && role == "super"
+}
+
+func handleCallback(client *http.Client, cb *TelegramCallback) {
+	chatID := cb.From.ID
+	userName := cb.From.FirstName
+	if cb.From.Username != "" {
+		userName = "@" + cb.From.Username
+	}
+
+	answerCallback(client, cb.ID)
+
+	switch cb.Data {
+	case "wallet":
+		handleMiWallet(client, chatID)
+	case "saldo":
+		handleSaldo(client, chatID)
+	case "comprar":
+		sendMessageWithButtons(client, chatID,
+			fmt.Sprintf("💶 <b>¿Cuánto quieres comprar?</b>\n\nPrecio actual: <b>%.4f€</b>/SPC", getCurrentPrice()),
+			[][]InlineButton{
+				{{Text: "10€", Data: "buy_10"}, {Text: "25€", Data: "buy_25"}, {Text: "50€", Data: "buy_50"}},
+				{{Text: "100€", Data: "buy_100"}, {Text: "250€", Data: "buy_250"}, {Text: "500€", Data: "buy_500"}},
+				{{Text: "Otra cantidad → escribe /comprar 75", Data: "noop"}},
+				{{Text: "← Menú", Data: "menu"}},
+			},
+		)
+	case "vender":
+		sendMessageWithButtons(client, chatID,
+			fmt.Sprintf("💰 <b>¿Cuántos SPC quieres vender?</b>\n\nPrecio actual: <b>%.4f€</b>/SPC", getCurrentPrice()),
+			[][]InlineButton{
+				{{Text: "50 SPC", Data: "sell_50"}, {Text: "100 SPC", Data: "sell_100"}, {Text: "500 SPC", Data: "sell_500"}},
+				{{Text: "Otra cantidad → escribe /vender 200", Data: "noop"}},
+				{{Text: "← Menú", Data: "menu"}},
+			},
+		)
+	case "precio":
+		handlePrecio(client, chatID)
+	case "como":
+		handleComoComprar(client, chatID)
+	case "menu":
+		handleStart(client, chatID, userName)
+	case "noop":
+		// Do nothing
+
+	default:
+		// Handle buy/sell amount buttons
+		if strings.HasPrefix(cb.Data, "buy_") {
+			amountStr := strings.TrimPrefix(cb.Data, "buy_")
+			handleComprar(client, chatID, userName, chatID, "/comprar "+amountStr)
+		} else if strings.HasPrefix(cb.Data, "sell_") {
+			amountStr := strings.TrimPrefix(cb.Data, "sell_")
+			handleVender(client, chatID, userName, chatID, "/vender "+amountStr)
+		}
+	}
+}
+
+func handleSaldo(client *http.Client, chatID int64) {
+	walletAddr, _ := orderDB.GetAdminValue(fmt.Sprintf("wallet_%d", chatID))
+	if walletAddr == "" {
+		sendMessageWithButtons(client, chatID,
+			"No tienes wallet registrada. Crea una primero:",
+			[][]InlineButton{
+				{{Text: "🔐 Crear Wallet", Data: "wallet"}},
+				{{Text: "← Menú", Data: "menu"}},
+			},
+		)
+		return
+	}
+
+	msg := fmt.Sprintf(`👛 <b>Tu wallet:</b>
+<code>%s</code>
+
+Para ver tu saldo en tiempo real, abre:
+spaincoin.es/#/wallet`, walletAddr)
+	sendMessageWithButtons(client, chatID, msg, [][]InlineButton{
+		{{Text: "🌐 Ver en la web", URL: "https://spaincoin.es/#/wallet"}},
+		{{Text: "💶 Comprar SPC", Data: "comprar"}, {Text: "💰 Vender SPC", Data: "vender"}},
+		{{Text: "← Menú", Data: "menu"}},
+	})
 }
 
 func notifyAdmins(client *http.Client, text string, excludeChat int64) {
@@ -239,20 +363,57 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 		userName = "@" + msg.From.Username
 	}
 
-	log.Printf("[MSG] from=%s chat=%d text=%s", userName, chatID, text)
+	isGroup := msg.Chat.Type == "group" || msg.Chat.Type == "supergroup"
+	userChatID := msg.From.ID // private chat with user
+
+	log.Printf("[MSG] from=%s chat=%d group=%v text=%s", userName, chatID, isGroup, text)
+
+	// Strip @botname from commands in groups
+	if isGroup && strings.Contains(text, "@") {
+		text = strings.Split(text, "@")[0]
+	}
+
+	// In groups: delete non-command messages (keep it clean)
+	if isGroup && !strings.HasPrefix(text, "/") && !isAdmin(msg.From.ID) {
+		deleteMessage(client, chatID, msg.MessageID)
+		return
+	}
 
 	switch {
-	case text == "/start":
-		handleStart(client, chatID, userName)
+	case text == "/start" || text == "/menu":
+		if isGroup {
+			sendMessageWithButtons(client, chatID,
+				"🇪🇸 <b>SpainCoin</b> — escríbeme por privado para operar:",
+				[][]InlineButton{{{Text: "Abrir bot →", URL: "https://t.me/spaincoin_bot?start=go"}}},
+			)
+		} else {
+			handleStart(client, chatID, userName)
+		}
 	case text == "/precio" || text == "/price":
-		handlePrecio(client, chatID)
+		handlePrecio(client, chatID) // precio es público, se puede ver en grupo
 	case strings.HasPrefix(text, "/comprar"):
-		handleComprar(client, chatID, userName, msg.From.ID, text)
+		if isGroup {
+			sendMessage(client, chatID, fmt.Sprintf("👤 %s — te he enviado un mensaje privado para completar la compra.", userName))
+			sendMessage(client, userChatID, "Has pedido comprar SPC desde el grupo. Escríbeme aquí:")
+		}
+		handleComprar(client, userChatID, userName, userChatID, text)
 	case strings.HasPrefix(text, "/vender"):
-		handleVender(client, chatID, userName, msg.From.ID, text)
+		if isGroup {
+			sendMessage(client, chatID, fmt.Sprintf("👤 %s — te he enviado un mensaje privado para completar la venta.", userName))
+			sendMessage(client, userChatID, "Has pedido vender SPC desde el grupo. Escríbeme aquí:")
+		}
+		handleVender(client, userChatID, userName, userChatID, text)
 	case strings.HasPrefix(text, "/registro"):
+		if isGroup {
+			sendMessage(client, chatID, "🔐 El registro se hace por privado → @spaincoin_bot")
+			return
+		}
 		handleRegistro(client, chatID, userName, text)
 	case text == "/miwallet":
+		if isGroup {
+			sendMessage(client, chatID, "📱 Escríbeme por privado → @spaincoin_bot")
+			return
+		}
 		handleMiWallet(client, chatID)
 	case text == "/comocomprar":
 		handleComoComprar(client, chatID)
@@ -297,7 +458,7 @@ func handleStart(client *http.Client, chatID int64, name string) {
 	for _, t := range priceTiers {
 		if totalSPC < t.SoldUpTo {
 			remaining := t.SoldUpTo - totalSPC
-			nextTier = fmt.Sprintf("\n⏰ Faltan %.0f SPC para que el precio suba a %.2f€", remaining, getNextPrice())
+			nextTier = fmt.Sprintf("\n⏰ Faltan %.0f SPC para subir a %.2f€", remaining, getNextPrice())
 			break
 		}
 	}
@@ -307,18 +468,9 @@ func handleStart(client *http.Client, chatID int64, name string) {
 Bienvenido a <b>SpainCoin ($SPC)</b>
 La primera blockchain española
 
-💰 Precio: <b>%.4f€</b> por SPC%s
+💰 Precio actual: <b>%.4f€</b>%s`, name, price, nextTier)
 
-<b>¿Qué quieres hacer?</b>
-/comprar 50 — Comprar 50€ de SPC
-/vender 100 — Vender 100 SPC
-/precio — Ver precio actual
-/miwallet — Crear tu wallet
-/comocomprar — Guía paso a paso
-/ayuda — Todos los comandos
-
-🌐 spaincoin.es`, name, price, nextTier)
-	sendMessage(client, chatID, msg)
+	sendMessageWithButtons(client, chatID, msg, mainMenuButtons())
 }
 
 func handlePrecio(client *http.Client, chatID int64) {
