@@ -188,7 +188,7 @@ export default function Wallet({ onNavigate }) {
                   {formatAmount(h.amount, h.symbol)}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                  @ {formatEUR(h.price)}
+                  Precio: {formatEUR(h.price)}
                 </div>
               </div>
 
