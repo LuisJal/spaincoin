@@ -139,6 +139,13 @@ code, .mono {
   animation: fadeIn 0.25s ease-out;
 }
 
+/* Navbar responsive */
+@media (max-width: 640px) {
+  .desktop-nav  { display: none !important; }
+  .desktop-auth { display: none !important; }
+  .hamburger    { display: flex !important; }
+}
+
 /* Spinner */
 @keyframes spin {
   to { transform: rotate(360deg); }
