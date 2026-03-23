@@ -140,7 +140,7 @@ func (s *Server) registerRoutes() {
 	// Auth routes
 	if s.userDB != nil {
 		mux.HandleFunc("/api/auth/register", handlers.HandleRegister(s.userDB, s.tradeDB))
-		mux.HandleFunc("/api/auth/login", handlers.HandleLogin(s.userDB))
+		mux.HandleFunc("/api/auth/login", handlers.HandleLogin(s.userDB, s.tradeDB))
 		mux.HandleFunc("/api/auth/me", auth.AuthMiddleware(handlers.HandleMe(s.userDB, nodeClient)))
 	}
 

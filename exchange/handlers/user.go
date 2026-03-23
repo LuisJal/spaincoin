@@ -176,7 +176,7 @@ type loginRequest struct {
 }
 
 // HandleLogin handles POST /api/auth/login.
-func HandleLogin(userDB *database.UserDB) http.HandlerFunc {
+func HandleLogin(userDB *database.UserDB, tradeDB *database.TradeDB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := clientIPFromRequest(r)
 
@@ -210,6 +210,11 @@ func HandleLogin(userDB *database.UserDB) http.HandlerFunc {
 			log.Printf("[ERROR] login jwt email=%s: %v", req.Email, err)
 			writeError(w, http.StatusInternalServerError, "internal error")
 			return
+		}
+
+		// Ensure EUR balance exists (for accounts created before trading)
+		if tradeDB != nil {
+			tradeDB.InitUserBalance(record.ID, 1000.0)
 		}
 
 		log.Printf("[AUDIT] login email=%s success ip=%s", req.Email, ip)

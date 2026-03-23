@@ -1,27 +1,52 @@
 import { useState, useEffect } from 'react'
 import PriceChart from '../components/PriceChart.jsx'
-import { getMarketTable, getPriceHistory, getMarketStats } from '../api/client.js'
+import { getMarketTable, getMarketStats } from '../api/client.js'
 
-const formatEUR = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
-const formatNum = (n) => n >= 1_000_000 ? (n / 1_000_000).toFixed(2) + 'M' : n >= 1_000 ? (n / 1_000).toFixed(1) + 'K' : n.toFixed(2)
+const formatEUR = (n) => n >= 1000 ? new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n) : new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
+const formatNum = (n) => n >= 1_000_000_000 ? (n / 1_000_000_000).toFixed(2) + 'B' : n >= 1_000_000 ? (n / 1_000_000).toFixed(2) + 'M' : n >= 1_000 ? (n / 1_000).toFixed(1) + 'K' : n.toFixed(2)
+
+const coinColors = {
+  SPC: { bg: 'linear-gradient(135deg, #ffc400, #e6a800)', text: '#c60b1e' },
+  BTC: { bg: 'linear-gradient(135deg, #f7931a, #e2820e)', text: '#fff' },
+  ETH: { bg: 'linear-gradient(135deg, #627eea, #4a67d6)', text: '#fff' },
+  BNB: { bg: 'linear-gradient(135deg, #f3ba2f, #d4a017)', text: '#000' },
+  SOL: { bg: 'linear-gradient(135deg, #9945ff, #14f195)', text: '#fff' },
+  XRP: { bg: 'linear-gradient(135deg, #23292f, #4a4a4a)', text: '#fff' },
+  ADA: { bg: 'linear-gradient(135deg, #0033ad, #0052ff)', text: '#fff' },
+  DOGE: { bg: 'linear-gradient(135deg, #c2a633, #ba9f33)', text: '#fff' },
+  DOT: { bg: 'linear-gradient(135deg, #e6007a, #c40068)', text: '#fff' },
+  AVAX: { bg: 'linear-gradient(135deg, #e84142, #d03031)', text: '#fff' },
+  MATIC: { bg: 'linear-gradient(135deg, #8247e5, #6b30d0)', text: '#fff' },
+}
+
+// Generate synthetic mini chart data per coin
+function generateMiniData(currentPrice, change, seed) {
+  const points = 30
+  const data = []
+  for (let i = 0; i < points; i++) {
+    const t = i / points
+    const wave = Math.sin(i / 3 + seed * 7) * 0.015 + Math.sin(i / 7 + seed * 3) * 0.01
+    const trend = (change / 100) * t
+    const price = currentPrice * (1 + wave + trend - (change / 100) * 0.5)
+    data.push({ price, height: i })
+  }
+  return data
+}
 
 export default function Market({ onNavigate }) {
   const [tokens, setTokens] = useState([])
   const [stats, setStats] = useState(null)
-  const [miniChart, setMiniChart] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
       try {
-        const [table, s, chart] = await Promise.all([
+        const [table, s] = await Promise.all([
           getMarketTable(),
           getMarketStats(),
-          getPriceHistory(50, '24h'),
         ])
         setTokens(table)
         setStats(s)
-        setMiniChart(chart)
       } catch (e) {
         console.error('Market load error:', e)
       } finally {
@@ -84,7 +109,7 @@ export default function Market({ onNavigate }) {
       {/* Token table */}
       <div style={{
         background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)',
-        overflow: 'hidden',
+        overflowX: 'auto',
       }}>
         <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
           <h2 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
@@ -125,11 +150,12 @@ export default function Market({ onNavigate }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <div style={{
                   width: '36px', height: '36px', borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ffc400, #e6a800)',
+                  background: (coinColors[t.symbol] || coinColors.SPC).bg,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: '700', fontSize: '0.7rem', color: '#c60b1e', flexShrink: 0,
+                  fontWeight: '700', fontSize: '0.7rem',
+                  color: (coinColors[t.symbol] || coinColors.SPC).text, flexShrink: 0,
                 }}>
-                  S
+                  {t.symbol.slice(0, 1)}
                 </div>
                 <div>
                   <div style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)' }}>{t.symbol}</div>
@@ -152,9 +178,9 @@ export default function Market({ onNavigate }) {
                 {formatEUR(t.volume)}
               </div>
 
-              {/* Mini chart */}
+              {/* Mini chart — generated per coin */}
               <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <PriceChart data={miniChart} width={120} height={40} color={changeColor} />
+                <PriceChart data={generateMiniData(t.price, t.change_24h, i)} width={120} height={40} color={changeColor} />
               </div>
 
               {/* Trade button */}

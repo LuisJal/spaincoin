@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 
@@ -174,9 +175,30 @@ type marketTableEntry struct {
 	Supply    float64 `json:"supply"`
 }
 
+// externalCoin defines a reference crypto for the market overview.
+type externalCoin struct {
+	Symbol    string
+	Name      string
+	BasePrice float64
+	Supply    float64
+	WaveDiv   float64 // unique wave divisor per coin
+}
+
+var referenceCryptos = []externalCoin{
+	{"BTC", "Bitcoin", 82000.0, 19_800_000, 97},
+	{"ETH", "Ethereum", 1850.0, 120_500_000, 73},
+	{"BNB", "BNB", 610.0, 145_900_000, 61},
+	{"SOL", "Solana", 130.0, 440_000_000, 53},
+	{"XRP", "XRP", 2.15, 55_000_000_000, 43},
+	{"ADA", "Cardano", 0.70, 35_000_000_000, 67},
+	{"DOGE", "Dogecoin", 0.16, 144_000_000_000, 31},
+	{"DOT", "Polkadot", 4.20, 1_400_000_000, 59},
+	{"AVAX", "Avalanche", 20.0, 400_000_000, 47},
+	{"MATIC", "Polygon", 0.22, 10_000_000_000, 37},
+}
+
 // HandleMarketTable handles GET /api/market/table.
-// Returns a list of tokens for the market overview page.
-// Currently only SPC, but structured for future expansion.
+// Returns SPC plus reference cryptos for a full market overview.
 func HandleMarketTable(nodeClient *client.NodeClient, sim *market.Simulator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		nodeStatus, err := nodeClient.Status()
@@ -189,6 +211,7 @@ func HandleMarketTable(nodeClient *client.NodeClient, sim *market.Simulator) htt
 		change := sim.Change24h(nodeStatus.Height)
 		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000_000.0
 
+		// SPC first
 		table := []marketTableEntry{
 			{
 				Symbol:    "SPC",
@@ -200,6 +223,41 @@ func HandleMarketTable(nodeClient *client.NodeClient, sim *market.Simulator) htt
 				MarketCap: circulatingSupply * pp.Price,
 				Supply:    circulatingSupply,
 			},
+		}
+
+		// Reference cryptos with simulated variation
+		h := float64(nodeStatus.Height)
+		for _, c := range referenceCryptos {
+			// Each coin has unique wave pattern seeded by its WaveDiv
+			wave1 := math.Sin(h/c.WaveDiv) * 0.02
+			wave2 := math.Sin(h/(c.WaveDiv*2.7)) * 0.015
+			price := c.BasePrice * (1 + wave1 + wave2)
+			price = math.Round(price*100) / 100
+
+			// 24h change from block height offset
+			prevH := h - 17280
+			if prevH < 0 {
+				prevH = 0
+			}
+			prevWave1 := math.Sin(prevH/c.WaveDiv) * 0.02
+			prevWave2 := math.Sin(prevH/(c.WaveDiv*2.7)) * 0.015
+			prevPrice := c.BasePrice * (1 + prevWave1 + prevWave2)
+			ch := ((price - prevPrice) / prevPrice) * 100
+			ch = math.Round(ch*100) / 100
+
+			vol := c.BasePrice * c.Supply * 0.001 * (1 + math.Sin(h/50)*0.3)
+			vol = math.Round(vol)
+
+			table = append(table, marketTableEntry{
+				Symbol:    c.Symbol,
+				Name:      c.Name,
+				Pair:      c.Symbol + "/EUR",
+				Price:     price,
+				Change24h: ch,
+				Volume:    vol,
+				MarketCap: price * c.Supply,
+				Supply:    c.Supply,
+			})
 		}
 
 		writeJSON(w, http.StatusOK, table)

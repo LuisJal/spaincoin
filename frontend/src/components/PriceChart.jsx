@@ -60,13 +60,17 @@ export default function PriceChart({ data, width = 600, height = 200, color }) {
         vectorEffect="non-scaling-stroke"
       />
 
-      {/* Price labels */}
-      <text x="4" y="16" fill="var(--text-secondary)" fontSize="10" fontFamily="Inter, sans-serif">
-        {maxPrice.toFixed(4)}€
-      </text>
-      <text x="4" y={height - 4} fill="var(--text-secondary)" fontSize="10" fontFamily="Inter, sans-serif">
-        {minPrice.toFixed(4)}€
-      </text>
+      {/* Price labels — only show on large charts */}
+      {height > 80 && (
+        <>
+          <text x="4" y="16" fill="var(--text-secondary)" fontSize="10" fontFamily="Inter, sans-serif">
+            {maxPrice.toFixed(4)}€
+          </text>
+          <text x="4" y={height - 4} fill="var(--text-secondary)" fontSize="10" fontFamily="Inter, sans-serif">
+            {minPrice.toFixed(4)}€
+          </text>
+        </>
+      )}
     </svg>
   )
 }
