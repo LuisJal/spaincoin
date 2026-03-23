@@ -14,12 +14,12 @@ export default function Validators({ onNavigate }) {
         padding: '1.5rem', marginBottom: '1.5rem',
       }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-          Que es un validador
+          Qué es un validador
         </h2>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.7 }}>
           Un validador es un nodo que participa en el consenso de la red. Cada 5 segundos, un validador
           es seleccionado para producir el siguiente bloque. A cambio, recibe <strong style={{ color: 'var(--green)' }}>1 SPC de recompensa</strong> por bloque.
-          Cuanto mas stake tengas, mas probabilidad de ser seleccionado.
+          Cuanto más stake tengas, más probabilidad de ser seleccionado.
         </p>
       </div>
 
@@ -35,8 +35,8 @@ export default function Validators({ onNavigate }) {
           {[
             { label: 'Servidor', value: 'VPS con 2 vCPU, 4GB RAM (~8 EUR/mes)' },
             { label: 'Sistema', value: 'Ubuntu 22.04 o similar' },
-            { label: 'Stake minimo', value: '1 SPC' },
-            { label: 'Conocimientos', value: 'Basico de terminal/SSH' },
+            { label: 'Stake mínimo', value: '1 SPC' },
+            { label: 'Conocimientos', value: 'Básico de terminal/SSH' },
             { label: 'Disponibilidad', value: '24/7 (el nodo debe estar siempre activo)' },
           ].map((r, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: i < 4 ? '1px solid var(--border)' : 'none' }}>
@@ -53,7 +53,7 @@ export default function Validators({ onNavigate }) {
         padding: '1.5rem', marginBottom: '1.5rem',
       }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1rem' }}>
-          Guia paso a paso
+          Guía paso a paso
         </h2>
 
         {[
@@ -92,8 +92,8 @@ export default function Validators({ onNavigate }) {
         <ul style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.8, paddingLeft: '1.25rem' }}>
           <li><strong style={{ color: 'var(--text-primary)' }}>1 SPC por bloque</strong> producido</li>
           <li>Un bloque cada 5 segundos</li>
-          <li>~17.280 bloques/dia = hasta <strong style={{ color: 'var(--green)' }}>17.280 SPC/dia</strong> (repartidos entre validadores)</li>
-          <li>Cuanto mas stake, mas bloques te tocan</li>
+          <li>~17.280 bloques/día = hasta <strong style={{ color: 'var(--green)' }}>17.280 SPC/día</strong> (repartidos entre validadores)</li>
+          <li>Cuanto más stake, más bloques te tocan</li>
         </ul>
       </div>
 
@@ -103,10 +103,10 @@ export default function Validators({ onNavigate }) {
         padding: '1.5rem', textAlign: 'center',
       }}>
         <h2 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-          Necesitas ayuda?
+          ¿Necesitas ayuda?
         </h2>
         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-          Unete a la comunidad de validadores en Telegram
+          Únete a la comunidad de validadores en Telegram
         </p>
         <a href="https://t.me/spaincoin" target="_blank" rel="noopener noreferrer" style={{
           display: 'inline-block', padding: '0.65rem 1.5rem',

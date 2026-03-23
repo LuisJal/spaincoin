@@ -12,6 +12,7 @@ data/
 # Binarios
 spaincoin
 spc
+releases/
 /tmp/
 
 # Go

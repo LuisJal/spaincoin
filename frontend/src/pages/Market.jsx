@@ -181,7 +181,7 @@ export default function Market({ onNavigate }) {
           <li>Los precios se actualizan con cada bloque (cada 5 segundos)</li>
           <li>El par principal es <strong style={{ color: 'var(--text-primary)' }}>SPC/EUR</strong></li>
           <li>Cada usuario nuevo recibe <strong style={{ color: 'var(--green)' }}>1.000€ virtuales</strong> para practicar</li>
-          <li>Supply maximo: 21.000.000 SPC</li>
+          <li>Supply máximo: 21.000.000 SPC</li>
         </ul>
       </div>
 

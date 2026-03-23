@@ -29,11 +29,11 @@ export default function Landing({ onNavigate }) {
         background: 'linear-gradient(180deg, rgba(255,196,0,0.06) 0%, transparent 60%)',
       }}>
         <div style={{ fontSize: '3rem', fontWeight: '800', color: 'var(--text-primary)', lineHeight: 1.1, marginBottom: '1rem' }}>
-          La blockchain <span style={{ color: '#ffc400' }}>de Espana</span>
+          La blockchain <span style={{ color: '#ffc400' }}>de España</span>
         </div>
         <p style={{ fontSize: '1.15rem', color: 'var(--text-secondary)', maxWidth: '600px', margin: '0 auto 2rem', lineHeight: 1.6 }}>
           SpainCoin es una blockchain Layer 1 con consenso Proof of Stake.
-          Codigo abierto, descentralizada, construida desde cero en Go.
+          Código abierto, descentralizada, construida desde cero en Go.
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => onNavigate('/wallet')} style={{
@@ -73,16 +73,16 @@ export default function Landing({ onNavigate }) {
       {/* Features */}
       <div style={{ maxWidth: '800px', margin: '0 auto 3rem', padding: '0 1.5rem' }}>
         <h2 style={{ fontSize: '1.4rem', fontWeight: '700', color: 'var(--text-primary)', textAlign: 'center', marginBottom: '2rem' }}>
-          Por que SpainCoin
+          Por qué SpainCoin
         </h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
           {[
-            { title: 'Proof of Stake', desc: 'Consenso eficiente sin mineria. Valida bloques con tu stake y gana recompensas.' },
+            { title: 'Proof of Stake', desc: 'Consenso eficiente sin minería. Valida bloques con tu stake y gana recompensas.' },
             { title: 'Self-Custody', desc: 'Tus claves, tus fondos. Nunca almacenamos claves privadas. Tu wallet, tu control.' },
-            { title: 'Codigo Abierto', desc: 'Todo el codigo es publico y auditable. Transparencia total, sin puertas traseras.' },
-            { title: 'Red P2P', desc: 'Nodos conectados con libp2p. Descubrimiento automatico. Resistente a censura.' },
-            { title: 'Supply Limitado', desc: '21 millones de SPC maximo. Escasez programada, como Bitcoin.' },
-            { title: 'Hecha en Espana', desc: 'Disenada y construida desde cero. La primera blockchain espanola.' },
+            { title: 'Código Abierto', desc: 'Todo el código es público y auditable. Transparencia total, sin puertas traseras.' },
+            { title: 'Red P2P', desc: 'Nodos conectados con libp2p. Descubrimiento automático. Resistente a censura.' },
+            { title: 'Supply Limitado', desc: '21 millones de SPC máximo. Escasez programada, como Bitcoin.' },
+            { title: 'Hecha en España', desc: 'Diseñada y construida desde cero. La primera blockchain española.' },
           ].map((f, i) => (
             <div key={i} style={{
               background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)',
@@ -101,10 +101,10 @@ export default function Landing({ onNavigate }) {
         background: 'var(--bg-card)', borderTop: '1px solid var(--border)',
       }}>
         <h2 style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
-          Unete a la red
+          Únete a la red
         </h2>
         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem', maxWidth: '500px', margin: '0 auto 1.5rem' }}>
-          Descarga el wallet, corre un nodo validador y forma parte de la primera blockchain espanola.
+          Descarga el wallet, corre un nodo validador y forma parte de la primera blockchain española.
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => onNavigate('/validators')} style={{

@@ -312,7 +312,7 @@ export default function Account({ onNavigate }) {
           color: 'var(--text-secondary)',
           marginBottom: '1rem',
         }}>
-          Proximamente — usa el CLI para enviar transacciones:
+          Próximamente — usa el CLI para enviar transacciones:
           <code style={{ display: 'block', marginTop: '0.4rem', color: 'var(--accent)', fontSize: '0.78rem' }}>
             ./spaincoin send --to SPC1... --amount 10
           </code>
@@ -450,7 +450,7 @@ export default function Account({ onNavigate }) {
                   marginBottom: '1.25rem',
                   lineHeight: '1.6',
                 }}>
-                  Funcion disponible proximamente
+                  Función disponible próximamente
                 </div>
                 <button
                   onClick={() => setShowExportModal(false)}
