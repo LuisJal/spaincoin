@@ -219,6 +219,26 @@ func sendMessage(client *http.Client, chatID int64, text string) {
 	http.Post(url, "application/json", strings.NewReader(body))
 }
 
+// sendMessageAndTrack sends a message and returns the message ID for later deletion.
+func sendMessageAndTrack(client *http.Client, chatID int64, text string, buttons [][]InlineButton) int64 {
+	url := fmt.Sprintf("%s%s/sendMessage", telegramAPI, botToken)
+	kb, _ := json.Marshal(map[string]interface{}{"inline_keyboard": buttons})
+	body := fmt.Sprintf(`{"chat_id":%d,"text":%s,"parse_mode":"HTML","reply_markup":%s}`, chatID, jsonStr(text), string(kb))
+	resp, err := http.Post(url, "application/json", strings.NewReader(body))
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	var result struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			MessageID int64 `json:"message_id"`
+		} `json:"result"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result.Result.MessageID
+}
+
 func sendMessageWithButtons(client *http.Client, chatID int64, text string, buttons [][]InlineButton) {
 	url := fmt.Sprintf("%s%s/sendMessage", telegramAPI, botToken)
 	kb, _ := json.Marshal(map[string]interface{}{"inline_keyboard": buttons})
@@ -403,23 +423,9 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 		text = strings.Split(text, "@")[0]
 	}
 
-	// In groups: let people chat, but bot ONLY responds to /start
+	// In groups: bot ignores EVERYTHING. Only sends daily report automatically.
 	if isGroup {
-		if !isAdmin(msg.From.ID) {
-			// Users: only /start gets a response, everything else ignored
-			if text == "/start" || strings.HasPrefix(text, "/start@") {
-				sendMessageWithButtons(client, chatID,
-					"🇪🇸 <b>SpainCoin</b> — escríbeme por privado para operar:",
-					[][]InlineButton{{{Text: "Abrir bot →", URL: "https://t.me/spaincoin_bot?start=go"}}},
-				)
-			}
-			// All other messages (text or commands): ignore silently
-			return
-		}
-		// Admins: only process admin commands in group, not public ones
-		if !strings.HasPrefix(text, "/reporte") && !strings.HasPrefix(text, "/stats") {
-			return
-		}
+		return
 	}
 
 	switch {
@@ -1120,7 +1126,7 @@ func handleShowTiers(client *http.Client, chatID int64) {
 	sendMessage(client, chatID, msg)
 }
 
-// sendDailyReport sends the daily status to a chat.
+// sendDailyReport sends the daily status to a chat, deleting the previous report.
 func sendDailyReport(client *http.Client, chatID int64) {
 	price := getCurrentPrice()
 	totalSPC, totalEUR, count, _ := orderDB.GetStats()
@@ -1135,7 +1141,7 @@ func sendDailyReport(client *http.Client, chatID int64) {
 		}
 	}
 
-	msg := fmt.Sprintf(`🐂 <b>Buenos días SpainCoin 🇪🇸</b>
+	msg := fmt.Sprintf(`🐂 <b>SpainCoin — Informe diario 🇪🇸</b>
 
 💰 Precio: <b>%.4f€</b> por SPC
 📈 SPC vendidos: %.2f
@@ -1144,13 +1150,26 @@ func sendDailyReport(client *http.Client, chatID int64) {
 🇪🇸 Comunidad: <b>%d wallets</b>%s
 
 ¿Todavía no tienes SPC? Los primeros en comprar son los que más ganan.
+Para comprar, vender o crear tu wallet habla conmigo por privado 👇`, price, totalSPC, totalEUR, count, walletCount, nextTierInfo)
 
-🌐 spaincoin.es`, price, totalSPC, totalEUR, count, walletCount, nextTierInfo)
+	// Delete previous report in this chat
+	prevKey := fmt.Sprintf("last_report_%d", chatID)
+	prevMsgStr, _ := orderDB.GetAdminValue(prevKey)
+	if prevMsgStr != "" {
+		prevMsgID, _ := strconv.ParseInt(prevMsgStr, 10, 64)
+		if prevMsgID > 0 {
+			deleteMessage(client, chatID, prevMsgID)
+		}
+	}
 
-	sendMessageWithButtons(client, chatID, msg, [][]InlineButton{
+	// Send new report and save message ID
+	newMsgID := sendMessageAndTrack(client, chatID, msg, [][]InlineButton{
 		{{Text: "🐂 Comprar SPC", URL: "https://t.me/spaincoin_bot?start=go"}},
 		{{Text: "🌐 Web", URL: "https://spaincoin.es"}},
 	})
+	if newMsgID > 0 {
+		orderDB.SetAdminValue(prevKey, fmt.Sprintf("%d", newMsgID))
+	}
 
-	log.Printf("[DAILY] Report sent to chat %d", chatID)
+	log.Printf("[DAILY] Report sent to chat %d (msg %d)", chatID, newMsgID)
 }
