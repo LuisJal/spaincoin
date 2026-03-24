@@ -50,7 +50,7 @@ function LogoImage({ size = 140 }) {
 // STEP COMPONENTS
 // ==========================================
 
-function Step1Welcome({ onNext }) {
+function Step1Welcome({ onNext, onSkip }) {
   const [visible, setVisible] = useState(false)
   const [walletCount, setWalletCount] = useState(0)
   useEffect(() => {
@@ -116,7 +116,13 @@ function Step1Welcome({ onNext }) {
         Entendido, ¡vamos! →
       </button>
 
-      <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+      <button onClick={onSkip} style={{
+        marginTop: '1rem', padding: '0.5rem 1.5rem', background: 'transparent',
+        border: 'none', color: 'var(--accent)', fontSize: '0.85rem',
+        cursor: 'pointer', textDecoration: 'underline',
+      }}>Ya tengo wallet → ir a mi saldo</button>
+
+      <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
         Paso 1 de 5
       </div>
     </div>
@@ -571,7 +577,7 @@ export default function Onboarding({ onComplete }) {
 
   return (
     <div style={{ maxWidth: '500px', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      {step === 1 && <Step1Welcome onNext={() => setStep(2)} />}
+      {step === 1 && <Step1Welcome onNext={() => setStep(2)} onSkip={onComplete} />}
       {step === 2 && <Step2CreateWallet onNext={() => setStep(4)} onWalletCreated={setWallet} />}
       {step === 4 && <Step4FirstBuy wallet={wallet} onNext={() => setStep(5)} />}
       {step === 5 && <Step5Share wallet={wallet} onFinish={onComplete} />}
