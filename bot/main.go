@@ -403,9 +403,23 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 		text = strings.Split(text, "@")[0]
 	}
 
-	// In groups: users can chat freely, bot only responds to /start
-	if isGroup && !isAdmin(msg.From.ID) && !strings.HasPrefix(text, "/") {
-		return // ignore non-command messages, don't delete (let people chat)
+	// In groups: let people chat, but bot ONLY responds to /start
+	if isGroup {
+		if !isAdmin(msg.From.ID) {
+			// Users: only /start gets a response, everything else ignored
+			if text == "/start" || strings.HasPrefix(text, "/start@") {
+				sendMessageWithButtons(client, chatID,
+					"🇪🇸 <b>SpainCoin</b> — escríbeme por privado para operar:",
+					[][]InlineButton{{{Text: "Abrir bot →", URL: "https://t.me/spaincoin_bot?start=go"}}},
+				)
+			}
+			// All other messages (text or commands): ignore silently
+			return
+		}
+		// Admins: only process admin commands in group, not public ones
+		if !strings.HasPrefix(text, "/reporte") && !strings.HasPrefix(text, "/stats") {
+			return
+		}
 	}
 
 	switch {
