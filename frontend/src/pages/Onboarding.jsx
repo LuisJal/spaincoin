@@ -38,46 +38,10 @@ function saveWallet(address, privKey) {
   }).catch(() => {})
 }
 
-// ==========================================
-// TORITO SVG ANIMATION
-// ==========================================
-function ToritoSVG({ size = 120, animate = true }) {
+function LogoImage({ size = 140 }) {
   return (
-    <div style={{ position: 'relative', width: size, height: size, margin: '0 auto' }}
-      className={animate ? 'torito-bounce' : ''}>
-      <svg viewBox="0 0 120 120" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
-        {/* Coin background */}
-        <defs>
-          <linearGradient id="coinBg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#ffc400"/><stop offset="100%" stopColor="#e6a800"/>
-          </linearGradient>
-        </defs>
-        <circle cx="60" cy="60" r="56" fill="url(#coinBg)" stroke="#b8860b" strokeWidth="2"/>
-        <circle cx="60" cy="60" r="48" fill="none" stroke="#b8860b" strokeWidth="1" opacity="0.4"/>
-        {/* Bull silhouette */}
-        <g transform="translate(30, 25) scale(0.5)">
-          {/* Body */}
-          <ellipse cx="60" cy="90" rx="40" ry="28" fill="#c60b1e" opacity="0.9"/>
-          {/* Head */}
-          <circle cx="95" cy="70" r="20" fill="#c60b1e" opacity="0.9"/>
-          {/* Horns */}
-          <path d="M85 55 Q80 35 70 30" stroke="#b8860b" strokeWidth="4" fill="none" strokeLinecap="round"/>
-          <path d="M105 55 Q110 35 120 30" stroke="#b8860b" strokeWidth="4" fill="none" strokeLinecap="round"/>
-          {/* Eye */}
-          <circle cx="100" cy="68" r="3" fill="#ffc400"/>
-          {/* Nose ring */}
-          <circle cx="102" cy="80" r="5" fill="none" stroke="#b8860b" strokeWidth="2"/>
-          {/* Legs */}
-          <rect x="30" y="110" width="8" height="25" rx="3" fill="#c60b1e" opacity="0.8"/>
-          <rect x="50" y="112" width="8" height="23" rx="3" fill="#c60b1e" opacity="0.8"/>
-          <rect x="70" y="112" width="8" height="23" rx="3" fill="#c60b1e" opacity="0.8"/>
-          <rect x="85" y="110" width="8" height="25" rx="3" fill="#c60b1e" opacity="0.8"/>
-          {/* Tail */}
-          <path d="M20 80 Q5 70 10 55" stroke="#c60b1e" strokeWidth="4" fill="none" strokeLinecap="round"/>
-        </g>
-        {/* SPC text */}
-        <text x="60" y="115" textAnchor="middle" fontFamily="Georgia, serif" fontWeight="700" fontSize="12" fill="#c60b1e">SPC</text>
-      </svg>
+    <div className="torito-bounce" style={{ margin: '0 auto', width: size }}>
+      <img src="/logo.jpeg" alt="SpainCoin" style={{ width: size, height: 'auto', borderRadius: '12px' }} />
     </div>
   )
 }
@@ -96,7 +60,7 @@ function Step1Welcome({ onNext }) {
 
   return (
     <div style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.6s', textAlign: 'center', padding: '2rem 1.5rem' }}>
-      <ToritoSVG size={140} />
+      <LogoImage size={160} />
 
       <h1 style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-primary)', marginTop: '1.5rem', marginBottom: '0.5rem' }}>
         Bienvenido a <span style={{ color: '#ffc400' }}>SpainCoin</span>

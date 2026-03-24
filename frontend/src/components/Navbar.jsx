@@ -8,21 +8,8 @@ const navItems = [
   { label: 'Validadores', page: '/validators' },
 ]
 
-function LogoSVG({ size = 32 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="cg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#ffc400"/><stop offset="100%" stopColor="#e6a800"/>
-        </linearGradient>
-      </defs>
-      <circle cx="24" cy="24" r="22" fill="url(#cg)" stroke="#b8860b" strokeWidth="1.5"/>
-      <circle cx="24" cy="24" r="18" fill="none" stroke="#b8860b" strokeWidth="0.8" opacity="0.5"/>
-      <rect x="10" y="10" width="28" height="5" rx="1" fill="#c60b1e" opacity="0.85"/>
-      <rect x="10" y="33" width="28" height="5" rx="1" fill="#c60b1e" opacity="0.85"/>
-      <text x="24" y="29" textAnchor="middle" fontFamily="Georgia, serif" fontWeight="700" fontSize="18" fill="#c60b1e" opacity="0.9">S</text>
-    </svg>
-  )
+function Logo({ size = 32 }) {
+  return <img src="/logo.jpeg" alt="SpainCoin" style={{ width: size, height: size, borderRadius: '6px', objectFit: 'contain' }} />
 }
 
 export default function Navbar({ currentPage, onNavigate }) {
@@ -64,7 +51,7 @@ export default function Navbar({ currentPage, onNavigate }) {
     }}>
       <a href="#/" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', textDecoration: 'none', flexShrink: 0 }}
         onClick={(e) => { e.preventDefault(); handleNavigate('/') }}>
-        <LogoSVG size={32} />
+        <Logo size={36} />
         <div>
           <span style={{ fontWeight: '600', fontSize: '1rem', color: '#f9fafb' }}>SpainCoin</span>
           <span style={{ fontSize: '0.7rem', color: '#9ca3af', display: 'block', lineHeight: 1 }}>Blockchain</span>
