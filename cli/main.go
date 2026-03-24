@@ -14,6 +14,8 @@ func main() {
 	switch os.Args[1] {
 	case "wallet":
 		runWallet(os.Args[2:])
+	case "send":
+		runSend(os.Args[2:])
 	case "tx":
 		runTx(os.Args[2:])
 	case "chain":
