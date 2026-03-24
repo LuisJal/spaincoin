@@ -716,17 +716,22 @@ Después simplemente:
 💶 Pagas: <b>%.2f€</b>
 💰 Recibes: <b>%.4f SPC</b>
 📍 Precio: %.4f€/SPC
-📬 Tu wallet: <code>%s</code>
 
 <b>👉 Siguiente paso:</b>
-Haz una transferencia de <b>%.2f€</b> a:
+Haz una transferencia de <b>%.2f€</b> al IBAN de abajo con el concepto indicado.
 
-%s
-
-Concepto: <code>SPC-%d</code>
-
-Cuando verifiquemos el pago, recibirás tus SPC y una confirmación aquí. ⏱️ Normalmente en menos de 10 minutos.`, order.ID, amountEUR, amountSPC, price, walletAddr, amountEUR, bankInfo, order.ID)
+⏱️ Normalmente en menos de 10 minutos recibirás tus SPC.`, order.ID, amountEUR, amountSPC, price, amountEUR)
 	sendMessage(client, chatID, msg)
+
+	// Send IBAN in separate message so it's easy to copy
+	ibanMsg := fmt.Sprintf(`🏦 <b>Datos de pago:</b>
+
+IBAN (toca para copiar):
+<code>%s</code>
+
+Concepto (toca para copiar):
+<code>SPC-%d</code>`, bankInfo, order.ID)
+	sendMessage(client, chatID, ibanMsg)
 
 	// Notify all admins
 	adminMsg := fmt.Sprintf(`🔔 <b>NUEVA COMPRA #%d</b>
