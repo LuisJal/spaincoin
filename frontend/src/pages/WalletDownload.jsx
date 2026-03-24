@@ -95,11 +95,10 @@ function hexToBytes(hex) {
 // WALLET STORAGE — localStorage cifrado
 // ==========================================
 
-function saveWallet(address, privKey) {
-  // Store encrypted in localStorage — basic protection
+function saveWallet(address, privKey, name) {
   const wallets = JSON.parse(localStorage.getItem('spc_wallets') || '[]')
   if (!wallets.find(w => w.address === address)) {
-    wallets.push({ address, key: privKey, created: Date.now() })
+    wallets.push({ address, key: privKey, name: name || '', created: Date.now() })
     localStorage.setItem('spc_wallets', JSON.stringify(wallets))
   }
 }
@@ -126,6 +125,7 @@ export default function WalletDownload({ onNavigate }) {
   const [creating, setCreating] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importInput, setImportInput] = useState('')
+  const [importName, setImportName] = useState('')
   const [importError, setImportError] = useState('')
   const [copied, setCopied] = useState('')
   const [tab, setTab] = useState('wallet') // 'wallet' | 'download'
@@ -174,12 +174,13 @@ export default function WalletDownload({ onNavigate }) {
       setImportError('Dirección inválida. Debe empezar por SPC y tener 43 caracteres.')
       return
     }
-    saveWallet(input, '')
+    saveWallet(input, '', importName.trim() || 'Mi wallet')
     const saved = loadWallets()
     setWallets(saved)
     setActiveWallet(saved.find(s => s.address === input))
     setShowImport(false)
     setImportInput('')
+    setImportName('')
   }
 
   function handleCopy(text, label) {
@@ -257,6 +258,16 @@ export default function WalletDownload({ onNavigate }) {
               </p>
               <input
                 type="text"
+                value={importName}
+                onChange={e => setImportName(e.target.value)}
+                placeholder="Nombre (ej: Mi wallet principal)"
+                style={{
+                  width: '100%', padding: '0.7rem', borderRadius: '8px',
+                  border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem',
+                }} />
+              <input
+                type="text"
                 value={importInput}
                 onChange={e => setImportInput(e.target.value)}
                 placeholder="SPCxxx..."
@@ -284,7 +295,13 @@ export default function WalletDownload({ onNavigate }) {
             <>
               {/* Wallet info */}
               <div style={sectionCard}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Mi Wallet</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Mi Wallet</div>
+                {activeWallet.name && (
+                  <div style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>
+                    {activeWallet.name}
+                  </div>
+                )}
+                {!activeWallet.name && <div style={{ marginBottom: '0.5rem' }} />}
 
                 {/* Address */}
                 <div style={{
@@ -304,25 +321,23 @@ export default function WalletDownload({ onNavigate }) {
                 </div>
 
                 {/* Balance */}
-                <div style={{
-                  display: 'flex', gap: '0.75rem',
-                }}>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <div style={{
-                    flex: 1, background: 'var(--bg-secondary)', borderRadius: '10px',
+                    flex: 2, background: 'var(--bg-secondary)', borderRadius: '10px',
                     padding: '0.85rem', border: '1px solid var(--border)',
                   }}>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>Balance</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                    <div style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)' }}>
                       {balance ? formatSPC(balance.balance_spc) : '0'}
+                      <span style={{ fontSize: '0.8rem', color: 'var(--accent)', marginLeft: '0.3rem' }}>SPC</span>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--accent)' }}>SPC</div>
                   </div>
                   <div style={{
                     flex: 1, background: 'var(--bg-secondary)', borderRadius: '10px',
                     padding: '0.85rem', border: '1px solid var(--border)',
                   }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>Nonce</div>
-                    <div style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-primary)', fontFamily: 'monospace' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>Transacciones</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--text-primary)' }}>
                       {balance ? balance.nonce : '0'}
                     </div>
                   </div>
@@ -370,9 +385,12 @@ export default function WalletDownload({ onNavigate }) {
                         borderRadius: '6px', border: 'none', cursor: 'pointer',
                         background: w.address === activeWallet.address ? 'var(--accent)' : 'var(--bg-secondary)',
                         color: w.address === activeWallet.address ? '#fff' : 'var(--text-secondary)',
-                        fontFamily: 'monospace', fontSize: '0.7rem',
+                        fontSize: '0.8rem',
                       }}>
-                      {w.address.slice(0, 20)}...
+                      <span style={{ fontWeight: '600' }}>{w.name || 'Wallet'}</span>
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.65rem', marginLeft: '0.5rem', opacity: 0.7 }}>
+                        {w.address.slice(0, 12)}...
+                      </span>
                     </button>
                   ))}
                 </div>
