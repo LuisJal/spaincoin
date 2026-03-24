@@ -481,6 +481,19 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 		handleListAdmins(client, chatID)
 	case isSuper(chatID) && text == "/myid":
 		sendMessage(client, chatID, fmt.Sprintf("Tu chat ID: <code>%d</code>", chatID))
+	case isSuper(chatID) && text == "/reporte":
+		groupStr, _ := orderDB.GetAdminValue("group_chat_id")
+		if groupStr == "" {
+			groupStr = os.Getenv("SPC_GROUP_CHAT_ID")
+		}
+		gid, _ := strconv.ParseInt(groupStr, 10, 64)
+		if gid != 0 {
+			sendDailyReport(client, gid)
+			sendMessage(client, chatID, "✅ Reporte enviado al grupo.")
+		} else {
+			sendDailyReport(client, chatID)
+			sendMessage(client, chatID, "⚠️ No hay grupo configurado. Reporte enviado aquí.")
+		}
 	case isSuper(chatID) && text == "/tiers":
 		handleShowTiers(client, chatID)
 
