@@ -40,13 +40,18 @@ export default function Landing({ onNavigate }) {
             padding: '0.85rem 2rem', background: 'linear-gradient(135deg, #ffc400, #e6a800)',
             border: 'none', borderRadius: '10px', color: '#000', fontSize: '1rem',
             fontWeight: '700', cursor: 'pointer',
-          }}>Descargar Wallet</button>
+          }}>Crear Wallet</button>
           <button onClick={() => onNavigate('/whitepaper')} style={{
             padding: '0.85rem 2rem', background: 'transparent',
             border: '1px solid rgba(255,255,255,0.2)', borderRadius: '10px',
             color: '#f9fafb', fontSize: '1rem', fontWeight: '500', cursor: 'pointer',
           }}>White Paper</button>
         </div>
+        <button onClick={() => onNavigate('/wallet')} style={{
+          marginTop: '0.75rem', padding: '0.5rem 1.5rem', background: 'transparent',
+          border: 'none', color: 'var(--accent)', fontSize: '0.85rem',
+          cursor: 'pointer', textDecoration: 'underline',
+        }}>Ya tengo wallet → ver mi saldo</button>
       </div>
 
       {/* Stats */}
