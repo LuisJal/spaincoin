@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,7 +15,15 @@ import (
 
 	"go.etcd.io/bbolt"
 
+	"github.com/spaincoin/spaincoin/core/block"
+	"github.com/spaincoin/spaincoin/core/crypto"
 	"github.com/spaincoin/spaincoin/exchange/database"
+)
+
+var (
+	hotWalletKey  *crypto.PrivateKey
+	hotWalletAddr crypto.Address
+	nodeRPCURL    string
 )
 
 const telegramAPI = "https://api.telegram.org/bot"
@@ -147,6 +156,25 @@ func main() {
 	var groupChatID int64
 	if groupChatStr != "" {
 		groupChatID, _ = strconv.ParseInt(groupChatStr, 10, 64)
+	}
+
+	// Initialize hot wallet for automatic SPC sending
+	nodeRPCURL = os.Getenv("SPC_NODE_URL")
+	if nodeRPCURL == "" {
+		nodeRPCURL = "http://204.168.176.40:8545"
+	}
+	hotKeyHex := os.Getenv("SPC_HOT_WALLET_KEY")
+	if hotKeyHex != "" {
+		priv, pub, err := crypto.PrivateKeyFromHex(hotKeyHex)
+		if err != nil {
+			log.Printf("[WARN] Invalid hot wallet key: %v", err)
+		} else {
+			hotWalletKey = priv
+			hotWalletAddr = pub.ToAddress()
+			log.Printf("Hot wallet: %s", hotWalletAddr.String())
+		}
+	} else {
+		log.Println("[WARN] SPC_HOT_WALLET_KEY not set — auto-send disabled")
 	}
 
 	log.Println("SpainCoin Bot starting...")
@@ -957,28 +985,48 @@ func handleConfirmar(client *http.Client, chatID int64, text string, adminName s
 		return
 	}
 
+	// For buy orders: send SPC automatically
+	txID := ""
+	if order.Type == "buy" && order.WalletAddr != "" && hotWalletKey != nil {
+		var err error
+		txID, err = sendSPCToWallet(client, order.WalletAddr, order.AmountSPC)
+		if err != nil {
+			sendMessage(client, chatID, fmt.Sprintf("⚠️ Orden confirmada pero error enviando SPC: %v\nEnvía manualmente %.4f SPC a <code>%s</code>", err, order.AmountSPC, order.WalletAddr))
+			orderDB.ConfirmOrder(id)
+			return
+		}
+	}
+
 	orderDB.ConfirmOrder(id)
 
 	// Notify confirming admin
-	sendMessage(client, chatID, fmt.Sprintf("✅ Orden #%d confirmada.", id))
+	txInfo := ""
+	if txID != "" {
+		txInfo = fmt.Sprintf("\n📦 TX: <code>%s</code>", txID[:16]+"...")
+	}
+	sendMessage(client, chatID, fmt.Sprintf("✅ Orden #%d confirmada. SPC enviados automáticamente.%s", id, txInfo))
 
 	// Notify other admins
-	notifyAdmins(client, fmt.Sprintf("✅ Orden #%d confirmada por %s.", id, adminName), chatID)
+	notifyAdmins(client, fmt.Sprintf("✅ Orden #%d confirmada por %s. SPC enviados.%s", id, adminName, txInfo), chatID)
 
 	// Notify user
 	if order.UserChatID > 0 {
 		var userMsg string
 		if order.Type == "buy" {
+			txLine := ""
+			if txID != "" {
+				txLine = fmt.Sprintf("\n📦 TX: <code>%s</code>", txID)
+			}
 			userMsg = fmt.Sprintf(`🎉 <b>¡Compra completada!</b>
 
 Has recibido <b>%.4f SPC</b> en tu wallet:
 <code>%s</code>
-
+%s
 Precio: %.4f€/SPC
 Total pagado: %.2f€
 
 ¡Bienvenido a SpainCoin! 🇪🇸
-Comparte con tus amigos → cuantos más seamos, más vale $SPC.`, order.AmountSPC, order.WalletAddr, order.PriceEUR, order.AmountEUR)
+Comparte con tus amigos → cuantos más seamos, más vale $SPC.`, order.AmountSPC, order.WalletAddr, txLine, order.PriceEUR, order.AmountEUR)
 		} else {
 			userMsg = fmt.Sprintf(`🎉 <b>¡Venta completada!</b>
 
@@ -1124,6 +1172,75 @@ func handleShowTiers(client *http.Client, chatID int64) {
 	}
 	msg += fmt.Sprintf("\nVendidos: %.2f SPC", totalSPC)
 	sendMessage(client, chatID, msg)
+}
+
+// sendSPCToWallet sends SPC from the hot wallet to a recipient address.
+func sendSPCToWallet(client *http.Client, toAddress string, amountSPC float64) (string, error) {
+	if hotWalletKey == nil {
+		return "", fmt.Errorf("hot wallet not configured")
+	}
+
+	// Get nonce
+	resp, err := client.Get(fmt.Sprintf("%s/address/%s/balance", nodeRPCURL, hotWalletAddr.String()))
+	if err != nil {
+		return "", fmt.Errorf("nonce fetch failed: %v", err)
+	}
+	defer resp.Body.Close()
+	var nonceResult struct {
+		Nonce uint64 `json:"nonce"`
+	}
+	json.NewDecoder(resp.Body).Decode(&nonceResult)
+
+	// Build transaction
+	amountPesetas := uint64(amountSPC * 1_000_000_000_000)
+	toAddr, err := crypto.AddressFromHex(toAddress)
+	if err != nil {
+		return "", fmt.Errorf("invalid address: %v", err)
+	}
+
+	tx := block.NewTransaction(hotWalletAddr, toAddr, amountPesetas, nonceResult.Nonce, 1000)
+	if err := tx.Sign(hotWalletKey); err != nil {
+		return "", fmt.Errorf("sign failed: %v", err)
+	}
+
+	sigR := tx.Signature.R.Text(16)
+	sigS := tx.Signature.S.Text(16)
+	if len(sigR)%2 != 0 {
+		sigR = "0" + sigR
+	}
+	if len(sigS)%2 != 0 {
+		sigS = "0" + sigS
+	}
+
+	body := map[string]interface{}{
+		"from":   hotWalletAddr.String(),
+		"to":     toAddress,
+		"amount": amountPesetas,
+		"nonce":  nonceResult.Nonce,
+		"fee":    1000,
+		"sig_r":  sigR,
+		"sig_s":  sigS,
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	txResp, err := http.Post(nodeRPCURL+"/tx/send", "application/json", bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("send failed: %v", err)
+	}
+	defer txResp.Body.Close()
+
+	var txResult struct {
+		TxID  string `json:"tx_id"`
+		Error string `json:"error"`
+	}
+	json.NewDecoder(txResp.Body).Decode(&txResult)
+
+	if txResult.Error != "" {
+		return "", fmt.Errorf(txResult.Error)
+	}
+
+	log.Printf("[HOT-WALLET] Sent %.4f SPC to %s — tx: %s", amountSPC, toAddress, txResult.TxID)
+	return txResult.TxID, nil
 }
 
 // sendDailyReport sends the daily status to a chat, deleting the previous report.
