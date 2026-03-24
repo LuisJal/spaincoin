@@ -177,7 +177,9 @@ func main() {
 		log.Println("[WARN] SPC_HOT_WALLET_KEY not set — auto-send disabled")
 	}
 
-	log.Println("SpainCoin Bot starting...")
+	// Write price on startup so web always has it
+	startPrice := getCurrentPrice()
+	log.Printf("SpainCoin Bot starting... price=%.4f€", startPrice)
 	log.Printf("Admins: %v", adminIDs)
 	log.Printf("Group chat: %d", groupChatID)
 
@@ -1012,6 +1014,9 @@ func handleConfirmar(client *http.Client, chatID int64, text string, adminName s
 	}
 
 	orderDB.ConfirmOrder(id)
+
+	// Update price immediately after sale (writes spc_price.json)
+	getCurrentPrice()
 
 	// Notify confirming admin
 	txInfo := ""
