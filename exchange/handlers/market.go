@@ -93,7 +93,7 @@ func HandleStats(nodeClient *client.NodeClient, sim *market.Simulator) http.Hand
 
 		const maxSupply = 21_000_000.0
 		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000.0
-		price := sim.PriceAtHeight(nodeStatus.Height)
+		price := getP2PPrice()
 
 		resp := statsResponse{
 			Symbol:            "SPC",

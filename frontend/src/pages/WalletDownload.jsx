@@ -123,6 +123,8 @@ export default function WalletDownload({ onNavigate }) {
   const [activeWallet, setActiveWallet] = useState(null)
   const [balance, setBalance] = useState(null)
   const [creating, setCreating] = useState(false)
+  const [justCreated, setJustCreated] = useState(null) // {address, privateKey} — shown once only
+  const [createdConfirmed, setCreatedConfirmed] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importInput, setImportInput] = useState('')
   const [importName, setImportName] = useState('')
@@ -156,11 +158,12 @@ export default function WalletDownload({ onNavigate }) {
     setCreating(true)
     try {
       const w = await generateWallet()
-      saveWallet(w.address, w.privateKey)
+      saveWallet(w.address, '', 'Mi wallet')
       const saved = loadWallets()
       setWallets(saved)
       setActiveWallet(saved.find(s => s.address === w.address))
-      setShowKey(true)
+      setJustCreated(w) // show private key once
+      setCreatedConfirmed(false)
     } catch (e) {
       alert('Error creando wallet: ' + e.message)
     }
@@ -290,8 +293,90 @@ export default function WalletDownload({ onNavigate }) {
             </div>
           )}
 
+          {/* Just created — show private key ONCE */}
+          {justCreated && !createdConfirmed && (
+            <div style={sectionCard}>
+              <div style={{
+                textAlign: 'center', fontSize: '1.1rem', fontWeight: '700',
+                color: 'var(--green)', marginBottom: '1rem',
+              }}>
+                ¡Wallet creada!
+              </div>
+
+              {/* Address */}
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                  📬 TU DIRECCIÓN (pública — compártela para recibir SPC)
+                </div>
+                <div style={{
+                  background: 'var(--bg-secondary)', borderRadius: '8px', padding: '0.65rem 0.75rem',
+                  fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--accent)',
+                  wordBreak: 'break-all', marginBottom: '0.4rem',
+                }}>
+                  {justCreated.address}
+                </div>
+                <button onClick={() => handleCopy(justCreated.address, 'new-addr')} style={{
+                  width: '100%', padding: '0.45rem', borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: copied === 'new-addr' ? 'rgba(16,185,129,0.15)' : 'var(--bg-secondary)',
+                  color: copied === 'new-addr' ? 'var(--green)' : 'var(--text-secondary)',
+                  fontSize: '0.8rem', cursor: 'pointer',
+                }}>{copied === 'new-addr' ? '✓ Dirección copiada' : 'Copiar dirección'}</button>
+              </div>
+
+              {/* Private key */}
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.06)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                borderRadius: '10px', padding: '1rem', marginBottom: '1rem',
+              }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--red)', fontWeight: '600', marginBottom: '0.3rem' }}>
+                  🔑 TU CLAVE PRIVADA (secreta — guárdala en papel AHORA)
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                  Esta clave NO se guardará en la web. Si cierras esta pantalla sin guardarla, la pierdes para siempre.
+                </p>
+                <div style={{
+                  background: 'var(--bg-secondary)', borderRadius: '8px', padding: '0.65rem 0.75rem',
+                  fontFamily: 'monospace', fontSize: '0.62rem', color: 'var(--red)',
+                  wordBreak: 'break-all', marginBottom: '0.4rem',
+                }}>
+                  {justCreated.privateKey}
+                </div>
+                <button onClick={() => handleCopy(justCreated.privateKey, 'new-key')} style={{
+                  width: '100%', padding: '0.45rem', borderRadius: '6px',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  background: copied === 'new-key' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.08)',
+                  color: copied === 'new-key' ? 'var(--green)' : 'var(--red)',
+                  fontSize: '0.8rem', cursor: 'pointer',
+                }}>{copied === 'new-key' ? '✓ Clave copiada' : 'Copiar clave privada'}</button>
+              </div>
+
+              {/* Confirm */}
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem',
+                marginBottom: '1rem', cursor: 'pointer',
+              }}>
+                <input type="checkbox" checked={createdConfirmed} onChange={e => setCreatedConfirmed(e.target.checked)}
+                  style={{ width: '20px', height: '20px', accentColor: 'var(--green)', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                  He guardado mi dirección y mi clave privada en un lugar seguro
+                </span>
+              </label>
+
+              <button onClick={() => setJustCreated(null)} disabled={!createdConfirmed} style={{
+                width: '100%', padding: '0.85rem', borderRadius: '10px', border: 'none',
+                background: createdConfirmed ? 'linear-gradient(135deg, #ffc400, #e6a800)' : 'var(--border)',
+                color: createdConfirmed ? '#000' : 'var(--text-secondary)',
+                fontSize: '1rem', fontWeight: '700',
+                cursor: createdConfirmed ? 'pointer' : 'not-allowed',
+              }}>
+                Ya las guardé, continuar →
+              </button>
+            </div>
+          )}
+
           {/* Active wallet */}
-          {activeWallet && (
+          {activeWallet && !justCreated && (
             <>
               {/* Wallet info */}
               <div style={sectionCard}>
