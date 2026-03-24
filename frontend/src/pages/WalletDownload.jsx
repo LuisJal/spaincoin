@@ -294,7 +294,7 @@ export default function WalletDownload({ onNavigate }) {
           )}
 
           {/* Just created — show private key ONCE */}
-          {justCreated && !createdConfirmed && (
+          {justCreated && (
             <div style={sectionCard}>
               <div style={{
                 textAlign: 'center', fontSize: '1.1rem', fontWeight: '700',
@@ -363,7 +363,7 @@ export default function WalletDownload({ onNavigate }) {
                 </span>
               </label>
 
-              <button onClick={() => setJustCreated(null)} disabled={!createdConfirmed} style={{
+              <button onClick={() => { setJustCreated(null); setCreatedConfirmed(false) }} disabled={!createdConfirmed} style={{
                 width: '100%', padding: '0.85rem', borderRadius: '10px', border: 'none',
                 background: createdConfirmed ? 'linear-gradient(135deg, #ffc400, #e6a800)' : 'var(--border)',
                 color: createdConfirmed ? '#000' : 'var(--text-secondary)',

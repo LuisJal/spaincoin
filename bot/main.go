@@ -294,7 +294,7 @@ func mainMenuButtons() [][]InlineButton {
 		{{Text: "🔐 Crear Wallet", Data: "wallet"}, {Text: "👛 Mi Saldo", Data: "saldo"}},
 		{{Text: "💶 Comprar SPC", Data: "comprar"}, {Text: "💰 Vender SPC", Data: "vender"}},
 		{{Text: "📊 Precio", Data: "precio"}, {Text: "📖 Cómo comprar", Data: "como"}},
-		{{Text: "🌐 Web", URL: "https://spaincoin.es"}},
+		{{Text: "🌐 Web", URL: "https://spaincoin.es"}, {Text: "👥 Comunidad", URL: "https://t.me/+m5O2f0sZaZBkYmJk"}},
 	}
 }
 
@@ -543,6 +543,8 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 		handleAddAdmin(client, chatID, text)
 	case isSuper(chatID) && text == "/admins":
 		handleListAdmins(client, chatID)
+	case isSuper(chatID) && strings.HasPrefix(text, "/setvendidos"):
+		handleSetVendidos(client, chatID, text)
 	case isSuper(chatID) && text == "/myid":
 		sendMessage(client, chatID, fmt.Sprintf("Tu chat ID: <code>%d</code>", chatID))
 	case isSuper(chatID) && text == "/reporte":
@@ -1196,6 +1198,42 @@ func handleShowTiers(client *http.Client, chatID int64) {
 	}
 	msg += fmt.Sprintf("\nVendidos: %.2f SPC", totalSPC)
 	sendMessage(client, chatID, msg)
+}
+
+func handleSetVendidos(client *http.Client, chatID int64, text string) {
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		sendMessage(client, chatID, "Uso: /setvendidos 600")
+		return
+	}
+	amount, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil || amount < 0 {
+		sendMessage(client, chatID, "Cantidad inválida.")
+		return
+	}
+
+	// Create a synthetic confirmed order to adjust the total
+	currentSPC, _, _, _ := orderDB.GetStats()
+	diff := amount - currentSPC
+	if diff <= 0 {
+		sendMessage(client, chatID, fmt.Sprintf("Ya hay %.2f SPC vendidos. No se puede reducir.", currentSPC))
+		return
+	}
+
+	price := getCurrentPrice()
+	order := &database.Order{
+		Type:      "buy",
+		UserName:  "ajuste-manual",
+		AmountEUR: diff * price,
+		AmountSPC: diff,
+		PriceEUR:  price,
+		Status:    database.OrderConfirmed,
+	}
+	orderDB.CreateOrder(order)
+	orderDB.ConfirmOrder(order.ID)
+
+	newPrice := getCurrentPrice()
+	sendMessage(client, chatID, fmt.Sprintf("✅ Vendidos ajustados: %.2f → %.2f SPC\n💰 Precio actual: %.4f€", currentSPC, amount, newPrice))
 }
 
 // sendSPCToWallet sends SPC from the hot wallet to a recipient address.
