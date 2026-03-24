@@ -117,10 +117,11 @@ function Step1Welcome({ onNext, onSkip }) {
       </button>
 
       <button onClick={onSkip} style={{
-        marginTop: '1rem', padding: '0.5rem 1.5rem', background: 'transparent',
-        border: 'none', color: 'var(--accent)', fontSize: '0.85rem',
-        cursor: 'pointer', textDecoration: 'underline',
-      }}>Ya tengo wallet → ir a mi saldo</button>
+        marginTop: '1rem', padding: '0.6rem 1.5rem', background: 'transparent',
+        border: '1px solid var(--accent)', borderRadius: '10px',
+        color: 'var(--accent)', fontSize: '0.9rem', fontWeight: '600',
+        cursor: 'pointer',
+      }}>Ya tengo una wallet</button>
 
       <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
         Paso 1 de 5

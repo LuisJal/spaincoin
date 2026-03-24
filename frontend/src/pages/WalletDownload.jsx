@@ -240,11 +240,11 @@ export default function WalletDownload({ onNavigate }) {
                 {creating ? 'Generando...' : 'Crear Wallet'}
               </button>
               <button onClick={() => setShowImport(true)} style={{
-                marginTop: '0.75rem', width: '100%', padding: '0.65rem', borderRadius: '8px',
-                border: '1px solid var(--border)', background: 'transparent',
-                color: 'var(--text-secondary)', fontSize: '0.82rem', cursor: 'pointer',
+                marginTop: '0.75rem', width: '100%', padding: '0.75rem', borderRadius: '10px',
+                border: '1px solid var(--accent)', background: 'transparent',
+                color: 'var(--accent)', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer',
               }}>
-                Ya tengo una clave privada → Importar
+                Ya tengo una wallet
               </button>
             </div>
           )}
