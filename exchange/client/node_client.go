@@ -103,7 +103,7 @@ func (c *NodeClient) GetBalance(address string) (*models.BalanceInfo, error) {
 	if err := c.get(fmt.Sprintf("/address/%s/balance", address), &info); err != nil {
 		return nil, err
 	}
-	info.BalanceSPC = float64(info.Balance) / 1_000_000_000_000_000.0
+	info.BalanceSPC = float64(info.Balance) / 1_000_000_000_000.0
 	return &info, nil
 }
 

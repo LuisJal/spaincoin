@@ -51,7 +51,7 @@ type Config struct {
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		InitialSupply: 1_000_000_000_000_000, // 1 quadrillion pesetas = 1000 SPC, fits in uint64
+		InitialSupply: 5_000_000_000_000_000_000, // 5M SPC (1 SPC = 10^12 pesetas)
 		BlockTime:     5,
 		RPCPort:       8545,
 		P2PPort:       30303,

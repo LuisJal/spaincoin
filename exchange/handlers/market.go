@@ -48,7 +48,7 @@ func HandlePrice(nodeClient *client.NodeClient, sim *market.Simulator) http.Hand
 
 		pp := sim.CurrentPrice(nodeStatus.Height)
 		change := sim.Change24h(nodeStatus.Height)
-		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000_000.0
+		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000.0
 
 		resp := priceResponse{
 			Symbol:    "SPC",
@@ -76,7 +76,7 @@ func HandleStats(nodeClient *client.NodeClient, sim *market.Simulator) http.Hand
 		}
 
 		const maxSupply = 21_000_000.0
-		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000_000.0
+		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000.0
 		price := sim.PriceAtHeight(nodeStatus.Height)
 
 		resp := statsResponse{
@@ -146,7 +146,7 @@ func HandleTicker(nodeClient *client.NodeClient, sim *market.Simulator) http.Han
 
 		pp := sim.CurrentPrice(nodeStatus.Height)
 		change := sim.Change24h(nodeStatus.Height)
-		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000_000.0
+		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000.0
 
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"symbol":     "SPC",
@@ -253,7 +253,7 @@ func HandleMarketTable(nodeClient *client.NodeClient, sim *market.Simulator) htt
 
 		pp := sim.CurrentPrice(nodeStatus.Height)
 		change := sim.Change24h(nodeStatus.Height)
-		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000_000.0
+		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000.0
 
 		// SPC first
 		table := []marketTableEntry{

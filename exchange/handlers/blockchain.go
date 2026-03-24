@@ -112,7 +112,7 @@ func HandleExplorer(nodeClient *client.NodeClient) http.HandlerFunc {
 			Blocks:         blocks,
 			Height:         nodeStatus.Height,
 			TotalSupply:    nodeStatus.TotalSupply,
-			TotalSupplySPC: float64(nodeStatus.TotalSupply) / 1_000_000_000_000_000.0,
+			TotalSupplySPC: float64(nodeStatus.TotalSupply) / 1_000_000_000_000.0,
 		}
 		writeJSON(w, http.StatusOK, resp)
 	}
