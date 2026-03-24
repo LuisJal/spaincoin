@@ -126,7 +126,8 @@ export default function WalletDownload({ onNavigate }) {
   const [creating, setCreating] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [showImport, setShowImport] = useState(false)
-  const [importKey, setImportKey] = useState('')
+  const [importMode, setImportMode] = useState('address') // 'address' | 'key'
+  const [importInput, setImportInput] = useState('')
   const [importError, setImportError] = useState('')
   const [copied, setCopied] = useState('')
   const [tab, setTab] = useState('wallet') // 'wallet' | 'download'
@@ -170,16 +171,33 @@ export default function WalletDownload({ onNavigate }) {
 
   async function handleImport() {
     setImportError('')
-    try {
-      const w = await importWallet(importKey.trim())
-      saveWallet(w.address, w.privateKey)
+    const input = importInput.trim()
+
+    if (importMode === 'address') {
+      // Just watch an address (read-only, no private key)
+      if (!input.startsWith('SPC') || input.length !== 43) {
+        setImportError('Dirección inválida. Debe empezar por SPC y tener 43 caracteres.')
+        return
+      }
+      saveWallet(input, '') // no private key, read-only
       const saved = loadWallets()
       setWallets(saved)
-      setActiveWallet(saved.find(s => s.address === w.address))
+      setActiveWallet(saved.find(s => s.address === input))
       setShowImport(false)
-      setImportKey('')
-    } catch (e) {
-      setImportError('Clave privada inválida')
+      setImportInput('')
+    } else {
+      // Full import with private key
+      try {
+        const w = await importWallet(input)
+        saveWallet(w.address, w.privateKey)
+        const saved = loadWallets()
+        setWallets(saved)
+        setActiveWallet(saved.find(s => s.address === w.address))
+        setShowImport(false)
+        setImportInput('')
+      } catch (e) {
+        setImportError('Clave privada inválida')
+      }
     }
   }
 
@@ -252,24 +270,51 @@ export default function WalletDownload({ onNavigate }) {
           {/* Import form */}
           {showImport && (
             <div style={sectionCard}>
-              <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Importar wallet existente</div>
-              <input type="password" value={importKey} onChange={e => setImportKey(e.target.value)}
-                placeholder="Pega tu clave privada (hex)"
+              <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Ya tengo wallet</div>
+
+              {/* Mode selector */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <button onClick={() => { setImportMode('address'); setImportError('') }} style={{
+                  flex: 1, padding: '0.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: importMode === 'address' ? '600' : '400',
+                  background: importMode === 'address' ? 'var(--accent)' : 'var(--bg-secondary)',
+                  color: importMode === 'address' ? '#fff' : 'var(--text-secondary)',
+                }}>Ver mi saldo</button>
+                <button onClick={() => { setImportMode('key'); setImportError('') }} style={{
+                  flex: 1, padding: '0.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: importMode === 'key' ? '600' : '400',
+                  background: importMode === 'key' ? 'var(--accent)' : 'var(--bg-secondary)',
+                  color: importMode === 'key' ? '#fff' : 'var(--text-secondary)',
+                }}>Importar completa</button>
+              </div>
+
+              <input
+                type={importMode === 'key' ? 'password' : 'text'}
+                value={importInput}
+                onChange={e => setImportInput(e.target.value)}
+                placeholder={importMode === 'address' ? 'Pega tu dirección (SPCxxx...)' : 'Pega tu clave privada (hex)'}
                 style={{
                   width: '100%', padding: '0.7rem', borderRadius: '8px',
                   border: '1px solid var(--border)', background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.75rem',
+                  color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem',
                 }} />
+
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                {importMode === 'address'
+                  ? 'Solo necesitas tu dirección pública para ver el saldo.'
+                  : 'Con la clave privada podrás firmar transacciones desde este dispositivo.'}
+              </p>
+
               {importError && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{importError}</div>}
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button onClick={() => { setShowImport(false); setImportKey('') }} style={{
+                <button onClick={() => { setShowImport(false); setImportInput('') }} style={{
                   flex: 1, padding: '0.55rem', borderRadius: '8px', border: '1px solid var(--border)',
                   background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer',
                 }}>Cancelar</button>
                 <button onClick={handleImport} style={{
                   flex: 1, padding: '0.55rem', borderRadius: '8px', border: 'none',
                   background: 'var(--accent)', color: '#fff', fontWeight: '600', cursor: 'pointer',
-                }}>Importar</button>
+                }}>{importMode === 'address' ? 'Ver saldo' : 'Importar'}</button>
               </div>
             </div>
           )}
