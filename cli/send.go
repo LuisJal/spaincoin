@@ -68,9 +68,15 @@ func runSend(args []string) {
 		os.Exit(1)
 	}
 
-	// Send to node
+	// Send to node — pad hex to even length
 	sigR := tx.Signature.R.Text(16)
 	sigS := tx.Signature.S.Text(16)
+	if len(sigR)%2 != 0 {
+		sigR = "0" + sigR
+	}
+	if len(sigS)%2 != 0 {
+		sigS = "0" + sigS
+	}
 
 	body := map[string]interface{}{
 		"from":   fromAddress.String(),
