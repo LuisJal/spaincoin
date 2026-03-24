@@ -409,24 +409,38 @@ func getCurrentPrice() float64 {
 	// Check for manual override
 	manualPrice, _ := orderDB.GetPrice()
 	if manualPrice > 0 {
-		// Check if auto-pricing is disabled
 		autoMode, _ := orderDB.GetAdminValue("price_mode")
 		if autoMode == "manual" {
+			writePriceFile(manualPrice)
 			return manualPrice
 		}
 	}
 
 	// Auto-pricing based on total sold
 	totalSPC, _, _, _ := orderDB.GetStats()
+	price := 0.05 // default
 	for i := len(priceTiers) - 1; i >= 0; i-- {
 		if totalSPC >= priceTiers[i].SoldUpTo && i < len(priceTiers)-1 {
-			return priceTiers[i+1].Price
+			price = priceTiers[i+1].Price
+			break
 		}
 	}
-	if len(priceTiers) > 0 {
-		return priceTiers[0].Price
+	if price == 0.05 && len(priceTiers) > 0 {
+		price = priceTiers[0].Price
 	}
-	return 0.10
+
+	writePriceFile(price)
+	return price
+}
+
+// writePriceFile writes the current price to a shared file so the web API can read it.
+func writePriceFile(price float64) {
+	dataDir := os.Getenv("SPC_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	data, _ := json.Marshal(price)
+	os.WriteFile(dataDir+"/spc_price.json", data, 0644)
 }
 
 // ==========================================

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/json"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/spaincoin/spaincoin/exchange/client"
@@ -36,8 +38,23 @@ type statsResponse struct {
 	Note              string  `json:"note"`
 }
 
+// getP2PPrice reads the current P2P price from the bot's database.
+func getP2PPrice() float64 {
+	dataDir := os.Getenv("SPC_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	data, err := os.ReadFile(dataDir + "/spc_price.json")
+	if err == nil {
+		var price float64
+		if json.Unmarshal(data, &price) == nil && price > 0 {
+			return price
+		}
+	}
+	return 0.05 // default
+}
+
 // HandlePrice handles GET /api/market/price.
-// Uses the price simulator to return dynamic prices based on block height.
 func HandlePrice(nodeClient *client.NodeClient, sim *market.Simulator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		nodeStatus, err := nodeClient.Status()
@@ -46,21 +63,20 @@ func HandlePrice(nodeClient *client.NodeClient, sim *market.Simulator) http.Hand
 			return
 		}
 
-		pp := sim.CurrentPrice(nodeStatus.Height)
-		change := sim.Change24h(nodeStatus.Height)
+		p2pPrice := getP2PPrice()
 		circulatingSupply := float64(nodeStatus.TotalSupply) / 1_000_000_000_000.0
 
 		resp := priceResponse{
 			Symbol:    "SPC",
-			PriceUSD:  pp.Price * 1.08, // EUR to USD approx
-			PriceEUR:  pp.Price,
-			Change24h: change,
-			Volume24h: pp.Volume,
-			MarketCap: circulatingSupply * pp.Price,
-			High24h:   pp.High,
-			Low24h:    pp.Low,
+			PriceUSD:  p2pPrice * 1.08,
+			PriceEUR:  p2pPrice,
+			Change24h: 0,
+			Volume24h: 0,
+			MarketCap: circulatingSupply * p2pPrice,
+			High24h:   p2pPrice,
+			Low24h:    p2pPrice,
 			Height:    nodeStatus.Height,
-			Note:      "testnet — precio simulado",
+			Note:      "precio P2P actual",
 		}
 		writeJSON(w, http.StatusOK, resp)
 	}
