@@ -95,8 +95,8 @@ Fase 8 — Mainnet con comunidad de validadores`
         {
           title: '9. Contacto',
           content: `Web: spaincoin.es
-GitHub: github.com/spaincoin/spaincoin
-Telegram: t.me/spaincoin`
+GitHub: github.com/LuisJal/spaincoin
+Telegram: t.me/spaincoin_comunidad`
         },
       ].map((section, i) => (
         <div key={i} style={{

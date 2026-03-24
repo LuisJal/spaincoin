@@ -58,7 +58,7 @@ export default function Validators({ onNavigate }) {
 
         {[
           { step: '1', title: 'Crea tu wallet', code: 'go build -o spc ./cli/\n./spc wallet new' },
-          { step: '2', title: 'Clona el repositorio en tu servidor', code: 'git clone https://github.com/spaincoin/spaincoin\ncd spaincoin' },
+          { step: '2', title: 'Clona el repositorio en tu servidor', code: 'git clone https://github.com/LuisJal/spaincoin\ncd spaincoin' },
           { step: '3', title: 'Compila el nodo', code: 'CGO_ENABLED=0 go build -o spaincoin ./node/cmd/' },
           { step: '4', title: 'Configura las variables de entorno', code: 'export SPC_VALIDATOR_KEY=tu_clave_privada\nexport SPC_VALIDATOR_ADDRESS=SPCtu_address\nexport SPC_RPC_PORT=8545\nexport SPC_P2P_PORT=30303\nexport SPC_BLOCK_TIME=5\nexport SPC_DATA_DIR=./data' },
           { step: '5', title: 'Arranca el nodo', code: './spaincoin' },
@@ -108,7 +108,7 @@ export default function Validators({ onNavigate }) {
         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
           Únete a la comunidad de validadores en Telegram
         </p>
-        <a href="https://t.me/spaincoin" target="_blank" rel="noopener noreferrer" style={{
+        <a href="https://t.me/spaincoin_comunidad" target="_blank" rel="noopener noreferrer" style={{
           display: 'inline-block', padding: '0.65rem 1.5rem',
           background: '#0088cc', border: 'none', borderRadius: '8px',
           color: '#fff', fontSize: '0.85rem', fontWeight: '600', textDecoration: 'none',

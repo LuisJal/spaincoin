@@ -122,6 +122,7 @@ export default function WalletDownload({ onNavigate }) {
   const [wallets, setWallets] = useState([])
   const [activeWallet, setActiveWallet] = useState(null)
   const [balance, setBalance] = useState(null)
+  const [spcPrice, setSpcPrice] = useState(null)
   const [creating, setCreating] = useState(false)
   const [justCreated, setJustCreated] = useState(null) // {address, privateKey} — shown once only
   const [createdConfirmed, setCreatedConfirmed] = useState(false)
@@ -136,6 +137,10 @@ export default function WalletDownload({ onNavigate }) {
     const saved = loadWallets()
     setWallets(saved)
     if (saved.length > 0) setActiveWallet(saved[0])
+    // Fetch SPC price
+    fetch('/api/market/price').then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.price_eur) setSpcPrice(d.price_eur)
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -416,6 +421,11 @@ export default function WalletDownload({ onNavigate }) {
                       {balance ? formatSPC(balance.balance_spc) : '0'}
                       <span style={{ fontSize: '0.8rem', color: 'var(--accent)', marginLeft: '0.3rem' }}>SPC</span>
                     </div>
+                    {balance && spcPrice ? (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                        ≈ {(balance.balance_spc * spcPrice).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+                      </div>
+                    ) : null}
                   </div>
                   <div style={{
                     flex: 1, background: 'var(--bg-secondary)', borderRadius: '10px',
@@ -511,7 +521,7 @@ export default function WalletDownload({ onNavigate }) {
                 { os: 'Windows', file: 'spc-windows-amd64.exe', icon: '🪟' },
                 { os: 'Linux', file: 'spc-linux-amd64', icon: '🐧' },
               ].map(d => (
-                <a key={d.file} href={`https://github.com/spaincoin/spaincoin/releases/latest/download/${d.file}`}
+                <a key={d.file} href={`https://github.com/LuisJal/spaincoin/releases/latest/download/${d.file}`}
                   target="_blank" rel="noopener noreferrer"
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.6rem',
