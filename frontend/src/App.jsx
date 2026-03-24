@@ -10,6 +10,7 @@ import MarketInfo from './pages/MarketInfo.jsx'
 import WalletDownload from './pages/WalletDownload.jsx'
 import Validators from './pages/Validators.jsx'
 import WhitePaper from './pages/WhitePaper.jsx'
+import HowToSell from './pages/HowToSell.jsx'
 import Terms from './pages/legal/Terms.jsx'
 import Privacy from './pages/legal/Privacy.jsx'
 import Risk from './pages/legal/Risk.jsx'
@@ -29,6 +30,7 @@ function getPageFromHash() {
   if (path === '/wallet') return { page: '/wallet' }
   if (path === '/validators') return { page: '/validators' }
   if (path === '/whitepaper') return { page: '/whitepaper' }
+  if (path === '/como-vender') return { page: '/como-vender' }
   if (path === '/legal/terms') return { page: '/legal/terms' }
   if (path === '/legal/privacy') return { page: '/legal/privacy' }
   if (path === '/legal/risk') return { page: '/legal/risk' }
@@ -85,6 +87,8 @@ export default function App() {
         return <Validators onNavigate={handleNavigate} />
       case '/whitepaper':
         return <WhitePaper onNavigate={handleNavigate} />
+      case '/como-vender':
+        return <HowToSell onNavigate={handleNavigate} />
       case '/legal/terms':
         return <Terms onNavigate={handleNavigate} />
       case '/legal/privacy':

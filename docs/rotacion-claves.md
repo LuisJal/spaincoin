@@ -6,12 +6,12 @@
 
 ## 1. Clave del Bot de Telegram
 
-**Dónde está:** VPS 2 → `/var/spaincoin-exchange/.env` → `SPC_BOT_TOKEN`
+**Dónde está:** VPS 2 -> `/var/spaincoin-exchange/.env` -> `SPC_BOT_TOKEN`
 
 **Cuándo cambiar:** Si sospechas que alguien la tiene, o antes de mainnet.
 
 **Cómo:**
-1. Abre Telegram → @BotFather → `/revoke` → selecciona tu bot
+1. Abre Telegram -> @BotFather -> `/revoke` -> selecciona tu bot
 2. Te da un token nuevo
 3. En VPS 2:
 ```bash
@@ -25,7 +25,7 @@ systemctl restart spaincoin-bot
 
 ## 2. Clave SSH (acceso a servidores)
 
-**Dónde está:** Tu Mac → `~/.ssh/id_ed25519`
+**Dónde está:** Tu Mac -> `~/.ssh/id_ed25519`
 
 **Cuándo cambiar:** Si pierdes el Mac, o por precaución anual.
 
@@ -54,9 +54,9 @@ mv ~/.ssh/id_ed25519_new.pub ~/.ssh/id_ed25519.pub
 
 ## 3. Clave del Validador (SPC_VALIDATOR_KEY)
 
-**Dónde está:** VPS 1 → `/var/spaincoin/.env` → `SPC_VALIDATOR_KEY`
+**Dónde está:** VPS 1 -> `/var/spaincoin/.env` -> `SPC_VALIDATOR_KEY`
 
-**Cuándo cambiar:** Antes de mainnet (obligatorio). La clave actual pasó por esta conversación.
+**Cuándo cambiar:** Antes de mainnet (obligatorio). La clave actual pasó por conversaciones anteriores.
 
 **Cómo:**
 ```bash
@@ -79,55 +79,73 @@ journalctl -u spaincoin -f
 
 ---
 
-## 4. JWT Secret (SPC_JWT_SECRET)
+## 4. Clave de la Hot Wallet (SPC_HOT_WALLET_KEY)
 
-**Dónde está:** VPS 2 → `/var/spaincoin-exchange/.env` → `SPC_JWT_SECRET`
+**Dónde está:** VPS 2 -> `/var/spaincoin-exchange/.env` -> `SPC_HOT_WALLET_KEY`
 
-**Cuándo cambiar:** Si sospechas filtración. Al cambiarlo, TODOS los tokens de sesión existentes se invalidan.
+**Cuándo cambiar:** Si sospechas filtración, o por precaución periódica.
 
 **Cómo:**
 ```bash
+# En tu Mac — genera nueva wallet
+./spc wallet new
+# Apunta la clave privada y la dirección SPC...
+
+# Transfiere los SPC de la hot wallet vieja a la nueva
+./spc tx send --from <vieja> --to <nueva> --amount <balance>
+
+# En VPS 2:
 ssh root@46.62.201.94
-# Genera nuevo secret
-NEW_SECRET=$(openssl rand -hex 32)
-echo $NEW_SECRET
-
-# Edita el .env
 nano /var/spaincoin-exchange/.env
-# Pega el nuevo SPC_JWT_SECRET
+# Cambia SPC_HOT_WALLET_KEY por la nueva clave privada
+systemctl restart spaincoin-bot
 
-systemctl restart spaincoin-exchange
+# Verifica que el bot funciona
+journalctl -u spaincoin-bot -f
 ```
+
+**IMPORTANTE:** La hot wallet actual es `SPCc119f94ab074c970dc129884163fc00106d65481` con 50,000 SPC. Al rotar, hay que:
+1. Crear wallet nueva
+2. Transferir SPC de la vieja a la nueva
+3. Actualizar .env en VPS 2
+4. Reiniciar el bot
 
 ---
 
 ## 5. Admin Chat ID de Telegram
 
-**Dónde está:** VPS 2 → `/var/spaincoin-exchange/.env` → `SPC_ADMIN_CHAT_ID`
+**Dónde está:** VPS 2 -> `/var/spaincoin-exchange/.env` -> `SPC_ADMIN_CHAT_ID`
 
-**Cómo obtener tu chat ID:**
-1. Escribe `/myadmin` al bot
-2. Te responde con tu chat ID
-3. Ponlo en el .env
+**Cuándo cambiar:** Si cambias de cuenta de Telegram o añades admins.
+
+**Estructura planificada:**
+- 1 super admin (fundador)
+- 2 admins adicionales (cuando crezca el equipo)
 
 ---
 
-## 6. Bizum (teléfono para pagos)
+## 6. IBAN (cuenta para pagos)
 
-**Dónde está:** VPS 2 → `/var/spaincoin-exchange/.env` → `SPC_BIZUM_PHONE`
+**Dónde está:** VPS 2 -> `/var/spaincoin-exchange/.env` -> `SPC_IBAN`
 
-**Cuándo cambiar:** Si cambias de número de teléfono.
+**Valor actual:** ES87 1583 0001 1890 5361 0687 (Revolut)
+
+**Cuándo cambiar:** Si cambias de cuenta bancaria.
 
 ---
 
 ## Resumen rápido
 
-| Secreto | Ubicación | Riesgo si se filtra |
-|---------|-----------|-------------------|
-| SSH key | Tu Mac ~/.ssh/ | Acceso total a servidores |
-| Validator key | VPS 1 .env | Control de los fondos del validador |
-| JWT secret | VPS 2 .env | Suplantación de sesiones |
-| Bot token | VPS 2 .env | Control del bot de Telegram |
-| Bizum phone | VPS 2 .env | Spam, bajo riesgo |
+| Secreto | Ubicación | Riesgo si se filtra | Prioridad rotación |
+|---------|-----------|-------------------|--------------------|
+| SSH key | Tu Mac ~/.ssh/ | Acceso total a servidores | Alta |
+| Validator key | VPS 1 .env | Control de fondos del validador | Alta (antes de mainnet) |
+| Hot wallet key | VPS 2 .env | Pérdida de hasta 50,000 SPC | Media |
+| Bot token | VPS 2 .env | Control del bot de Telegram | Media |
+| IBAN | VPS 2 .env | Bajo riesgo (es público en transferencias) | Baja |
 
 **Regla de oro:** si dudas, cambia. Es gratis y tarda 2 minutos.
+
+---
+
+*Última actualización: 2026-03-24 — Añadida hot wallet, estructura admin*

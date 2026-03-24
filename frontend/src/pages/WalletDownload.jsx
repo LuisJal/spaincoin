@@ -124,9 +124,7 @@ export default function WalletDownload({ onNavigate }) {
   const [activeWallet, setActiveWallet] = useState(null)
   const [balance, setBalance] = useState(null)
   const [creating, setCreating] = useState(false)
-  const [showKey, setShowKey] = useState(false)
   const [showImport, setShowImport] = useState(false)
-  const [importMode, setImportMode] = useState('address') // 'address' | 'key'
   const [importInput, setImportInput] = useState('')
   const [importError, setImportError] = useState('')
   const [copied, setCopied] = useState('')
@@ -169,36 +167,19 @@ export default function WalletDownload({ onNavigate }) {
     setCreating(false)
   }
 
-  async function handleImport() {
+  function handleImport() {
     setImportError('')
     const input = importInput.trim()
-
-    if (importMode === 'address') {
-      // Just watch an address (read-only, no private key)
-      if (!input.startsWith('SPC') || input.length !== 43) {
-        setImportError('Dirección inválida. Debe empezar por SPC y tener 43 caracteres.')
-        return
-      }
-      saveWallet(input, '') // no private key, read-only
-      const saved = loadWallets()
-      setWallets(saved)
-      setActiveWallet(saved.find(s => s.address === input))
-      setShowImport(false)
-      setImportInput('')
-    } else {
-      // Full import with private key
-      try {
-        const w = await importWallet(input)
-        saveWallet(w.address, w.privateKey)
-        const saved = loadWallets()
-        setWallets(saved)
-        setActiveWallet(saved.find(s => s.address === w.address))
-        setShowImport(false)
-        setImportInput('')
-      } catch (e) {
-        setImportError('Clave privada inválida')
-      }
+    if (!input.startsWith('SPC') || input.length !== 43) {
+      setImportError('Dirección inválida. Debe empezar por SPC y tener 43 caracteres.')
+      return
     }
+    saveWallet(input, '')
+    const saved = loadWallets()
+    setWallets(saved)
+    setActiveWallet(saved.find(s => s.address === input))
+    setShowImport(false)
+    setImportInput('')
   }
 
   function handleCopy(text, label) {
@@ -271,40 +252,19 @@ export default function WalletDownload({ onNavigate }) {
           {showImport && (
             <div style={sectionCard}>
               <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Ya tengo wallet</div>
-
-              {/* Mode selector */}
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                <button onClick={() => { setImportMode('address'); setImportError('') }} style={{
-                  flex: 1, padding: '0.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                  fontSize: '0.8rem', fontWeight: importMode === 'address' ? '600' : '400',
-                  background: importMode === 'address' ? 'var(--accent)' : 'var(--bg-secondary)',
-                  color: importMode === 'address' ? '#fff' : 'var(--text-secondary)',
-                }}>Ver mi saldo</button>
-                <button onClick={() => { setImportMode('key'); setImportError('') }} style={{
-                  flex: 1, padding: '0.5rem', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                  fontSize: '0.8rem', fontWeight: importMode === 'key' ? '600' : '400',
-                  background: importMode === 'key' ? 'var(--accent)' : 'var(--bg-secondary)',
-                  color: importMode === 'key' ? '#fff' : 'var(--text-secondary)',
-                }}>Importar completa</button>
-              </div>
-
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                Pega tu dirección pública (SPCxxx...) para ver tu saldo.
+              </p>
               <input
-                type={importMode === 'key' ? 'password' : 'text'}
+                type="text"
                 value={importInput}
                 onChange={e => setImportInput(e.target.value)}
-                placeholder={importMode === 'address' ? 'Pega tu dirección (SPCxxx...)' : 'Pega tu clave privada (hex)'}
+                placeholder="SPCxxx..."
                 style={{
                   width: '100%', padding: '0.7rem', borderRadius: '8px',
                   border: '1px solid var(--border)', background: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.5rem',
+                  color: 'var(--text-primary)', fontSize: '0.85rem', marginBottom: '0.75rem',
                 }} />
-
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-                {importMode === 'address'
-                  ? 'Solo necesitas tu dirección pública para ver el saldo.'
-                  : 'Con la clave privada podrás firmar transacciones desde este dispositivo.'}
-              </p>
-
               {importError && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{importError}</div>}
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button onClick={() => { setShowImport(false); setImportInput('') }} style={{
@@ -314,7 +274,7 @@ export default function WalletDownload({ onNavigate }) {
                 <button onClick={handleImport} style={{
                   flex: 1, padding: '0.55rem', borderRadius: '8px', border: 'none',
                   background: 'var(--accent)', color: '#fff', fontWeight: '600', cursor: 'pointer',
-                }}>{importMode === 'address' ? 'Ver saldo' : 'Importar'}</button>
+                }}>Ver saldo</button>
               </div>
             </div>
           )}
@@ -322,41 +282,6 @@ export default function WalletDownload({ onNavigate }) {
           {/* Active wallet */}
           {activeWallet && (
             <>
-              {/* Key reveal warning */}
-              {showKey && (
-                <div style={{
-                  background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '12px', padding: '1.25rem', marginBottom: '1rem',
-                }}>
-                  <div style={{ fontWeight: '700', color: 'var(--red)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
-                    ⚠️ GUARDA TU CLAVE PRIVADA AHORA
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', lineHeight: 1.6 }}>
-                    Cópiala y guárdala en papel en un lugar seguro. Es la ÚNICA forma de acceder a tus fondos. Si la pierdes, los pierdes para siempre.
-                  </p>
-                  <div style={{
-                    background: 'var(--bg-secondary)', borderRadius: '8px', padding: '0.7rem',
-                    fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--red)',
-                    wordBreak: 'break-all', marginBottom: '0.75rem',
-                  }}>
-                    {activeWallet.key}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={() => handleCopy(activeWallet.key, 'key')} style={{
-                      flex: 1, padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--border)',
-                      background: copied === 'key' ? 'rgba(16,185,129,0.15)' : 'var(--bg-secondary)',
-                      color: copied === 'key' ? 'var(--green)' : 'var(--text-secondary)',
-                      fontSize: '0.8rem', cursor: 'pointer',
-                    }}>{copied === 'key' ? 'Copiada ✓' : 'Copiar clave'}</button>
-                    <button onClick={() => setShowKey(false)} style={{
-                      flex: 1, padding: '0.5rem', borderRadius: '8px', border: 'none',
-                      background: 'var(--accent)', color: '#fff',
-                      fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                    }}>Ya la guardé</button>
-                  </div>
-                </div>
-              )}
-
               {/* Wallet info */}
               <div style={sectionCard}>
                 <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Mi Wallet</div>
@@ -411,22 +336,13 @@ export default function WalletDownload({ onNavigate }) {
                   background: 'var(--green)', color: '#fff', fontSize: '0.9rem',
                   fontWeight: '700', cursor: 'pointer', textAlign: 'center', textDecoration: 'none',
                 }}>Comprar SPC</a>
-                <a href="https://t.me/spaincoin_bot" target="_blank" rel="noopener noreferrer" style={{
+                <button onClick={() => onNavigate('/como-vender')} style={{
                   flex: 1, padding: '0.7rem', borderRadius: '10px',
                   border: '1px solid var(--border)', background: 'transparent',
                   color: 'var(--text-primary)', fontSize: '0.9rem',
-                  fontWeight: '600', cursor: 'pointer', textAlign: 'center', textDecoration: 'none',
-                }}>Vender SPC</a>
+                  fontWeight: '600', cursor: 'pointer', textAlign: 'center',
+                }}>Vender SPC</button>
               </div>
-
-              {/* Show private key button */}
-              {!showKey && (
-                <button onClick={() => setShowKey(true)} style={{
-                  width: '100%', padding: '0.55rem', borderRadius: '8px',
-                  border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.05)',
-                  color: 'var(--red)', fontSize: '0.8rem', cursor: 'pointer', marginBottom: '1rem',
-                }}>Mostrar clave privada</button>
-              )}
 
               {/* Create another / Import */}
               <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -447,7 +363,7 @@ export default function WalletDownload({ onNavigate }) {
                 <div style={{ marginTop: '1rem' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Mis wallets:</div>
                   {wallets.map(w => (
-                    <button key={w.address} onClick={() => { setActiveWallet(w); setShowKey(false) }}
+                    <button key={w.address} onClick={() => { setActiveWallet(w); setShowImport(false) }}
                       style={{
                         display: 'block', width: '100%', textAlign: 'left',
                         padding: '0.5rem 0.75rem', marginBottom: '0.25rem',

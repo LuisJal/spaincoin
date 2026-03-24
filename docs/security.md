@@ -1,39 +1,63 @@
 # Seguridad — SpainCoin
 
 ## Principios
-1. Las claves privadas NUNCA salen del dispositivo del usuario
-2. El nodo RPC solo acepta peticiones del servidor del exchange
-3. Rate limiting en todas las APIs públicas
-4. HTTPS obligatorio en producción
-5. Auditoría antes de mainnet
+
+1. **Non-custodial**: no custodiamos fondos de usuarios. Cada usuario controla sus claves.
+2. Las claves privadas se generan client-side (en el navegador del usuario). NUNCA salen del dispositivo.
+3. El nodo RPC solo acepta peticiones desde VPS 2 (firewall).
+4. Rate limiting en todas las APIs públicas.
+5. HTTPS obligatorio en producción.
+6. El precio de SPC NUNCA se modifica vía Telegram. Solo auto-tiers o SSH.
 
 ## Capas de seguridad
 
-### Nodo blockchain (VPS 1)
-- Firewall: solo puertos 22, 30303, 8545
-- Rate limiting: 60 req/min por IP
-- Clave privada del validador: solo en /var/spaincoin/.env (chmod 600)
-- RPC solo accesible desde VPS 2 (configurar firewall para restringir 8545 a IP del VPS 2)
+### Nodo blockchain (VPS 1 — 204.168.176.40)
+- **Firewall (UFW)**: solo puertos 22, 30303, 8545
+- **RPC (8545)**: restringido SOLO a IP de VPS 2 (46.62.201.94)
+- **Rate limiting**: 60 req/min por IP
+- **Clave validador**: solo en `/var/spaincoin/.env` (chmod 600)
+- **SSH**: key-only (password deshabilitado)
+- **Backups**: cron diario en `/var/backups/spaincoin/`
 
-### Exchange API (VPS 2)
-- Rate limiting: 100 req/min por IP
-- Validación estricta de todas las entradas
-- Logs de auditoría para todas las transacciones
-- Headers de seguridad en todas las respuestas
-- HTTPS con Let's Encrypt (obligatorio antes de lanzar)
+### Web + API + Bot (VPS 2 — 46.62.201.94)
+- **Firewall (UFW)**: solo puertos 22, 80, 443
+- **Rate limiting**: 100 req/min por IP
+- **HTTPS**: Let's Encrypt (renovación automática)
+- **fail2ban**: activo
+- **SSH**: key-only (password deshabilitado)
+- **Backups**: cron diario en `/var/backups/spaincoin/`
+- **Headers seguridad**: CSP, X-Frame-Options, etc. (via nginx)
+- **CORS**: solo spaincoin.es permitido
 
-### Frontend React
-- Sin claves privadas en el navegador nunca
-- CSP headers en producción (via nginx)
-- Firma de transacciones siempre offline con CLI
+### Web wallet (client-side)
+- Generación de claves 100% en el navegador
+- La clave privada NUNCA se envía al servidor
+- Self-custody: el usuario es responsable de guardar su clave
+- Sin login, sin registro, sin sesiones
 
-## Hardening SSH (pendiente — aplicar antes de mainnet)
+### Bot de Telegram
+- Admin chat ID verificado para operaciones sensibles
+- Precio auto-escalado (no modificable vía Telegram)
+- Hot wallet con cantidad limitada de SPC (50,000 SPC)
+- Logs de todas las operaciones
+- Estructura admin planificada: 1 super admin + 2 admins
 
-En ambos VPS, deshabilitar login por contraseña (solo SSH key):
+### Hot wallet
+- Dirección: SPCc119f94ab074c970dc129884163fc00106d65481
+- Cantidad limitada: 50,000 SPC
+- Propósito: operaciones diarias del bot (auto-envío a compradores)
+- Se recarga periódicamente desde la wallet del fundador
+- Si se comprometiera, la pérdida máxima está acotada
+
+---
+
+## Hardening SSH (ya aplicado)
+
+En ambos VPS, login por contraseña deshabilitado (solo SSH key):
 ```bash
-sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-systemctl restart ssh
+# Verificar configuración
+grep PasswordAuthentication /etc/ssh/sshd_config
+# Debe mostrar: PasswordAuthentication no
 ```
 
 Ver intentos de acceso fallidos:
@@ -41,26 +65,49 @@ Ver intentos de acceso fallidos:
 journalctl -u ssh --since "1 hour ago" | grep "Failed"
 ```
 
-> ⚠️ Solo aplicar si tienes la SSH key configurada y funcionando — si la pierdes, te quedas sin acceso.
+---
+
+## Secretos del sistema
+
+| Secreto | Ubicación | Riesgo si se filtra |
+|---------|-----------|-------------------|
+| SSH key | Tu Mac ~/.ssh/ | Acceso total a servidores |
+| Validator key | VPS 1 .env | Control de los fondos del validador |
+| Hot wallet key | VPS 2 .env | Pérdida de hasta 50,000 SPC |
+| Bot token | VPS 2 .env | Control del bot de Telegram |
+| IBAN | VPS 2 .env | Bajo riesgo (es público en transferencias) |
+
+Ver [rotacion-claves.md](rotacion-claves.md) para guía de rotación de cada secreto.
 
 ---
 
-## Antes del lanzamiento (checklist)
-- [ ] Deshabilitar login SSH por contraseña en VPS 1 y VPS 2
-- [ ] Auditoría externa del código Go
-- [ ] Test de penetración del exchange
-- [ ] HTTPS activo en VPS 2
-- [ ] Firewall VPS 1: restringir puerto 8545 solo a IP de VPS 2
-- [ ] Backup automático de /var/spaincoin/data
+## Checklist de seguridad
+
+- [x] SSH key-only en VPS 1 y VPS 2
+- [x] Firewall VPS 1: RPC restringido a IP de VPS 2
+- [x] Firewall VPS 2: solo 22, 80, 443
+- [x] HTTPS activo en spaincoin.es
+- [x] fail2ban activo en VPS 2
+- [x] Backups diarios en ambos VPS
+- [x] Hot wallet con cantidad limitada
+- [x] Precio no modificable vía Telegram
+- [ ] Auditoría externa del código Go (antes de mainnet)
+- [ ] Test de penetración (antes de mainnet)
 - [ ] Monitoring y alertas (uptime + errores)
-- [ ] Bug bounty program
+- [ ] Bug bounty program (cuando crezca la comunidad)
 
 ## Amenazas conocidas y mitigaciones
+
 | Amenaza | Mitigación |
 |---------|-----------|
 | DDoS | Rate limiting + Cloudflare (gratis) |
 | Robo de clave validador | .env chmod 600 + acceso SSH solo con key |
-| XSS en frontend | CSP headers + no innerHTML |
-| SQL injection | No hay SQL — blockchain es el estado |
+| Robo de hot wallet | Cantidad limitada (50,000 SPC), recarga manual |
+| XSS en frontend | CSP headers + wallet client-side |
+| Phishing via Telegram | Admin chat ID verificado, precio no modificable por bot |
 | 51% attack | Solo viable en mainnet con muchos validadores |
-| Rug pull | Vesting 2 años en contrato (Fase 3) |
+| Bot comprometido | Hot wallet limita la exposición |
+
+---
+
+*Última actualización: 2026-03-24 — Protocolo non-custodial, infraestructura asegurada*
