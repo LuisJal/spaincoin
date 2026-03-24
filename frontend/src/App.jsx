@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import CookieBanner from './components/CookieBanner.jsx'
+import Onboarding from './pages/Onboarding.jsx'
 import Landing from './pages/Landing.jsx'
 import Explorer from './pages/Explorer.jsx'
 import BlockDetail from './pages/BlockDetail.jsx'
@@ -43,6 +44,7 @@ function navigate(path) {
 export default function App() {
   const [route, setRoute] = useState(getPageFromHash)
   const [history, setHistory] = useState([])
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('spc_onboarded'))
 
   useEffect(() => {
     function onHashChange() {
@@ -94,6 +96,19 @@ export default function App() {
       default:
         return <Landing onNavigate={handleNavigate} />
     }
+  }
+
+  function handleOnboardingComplete() {
+    localStorage.setItem('spc_onboarded', '1')
+    setShowOnboarding(false)
+  }
+
+  if (showOnboarding) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+        <Onboarding onComplete={handleOnboardingComplete} />
+      </div>
+    )
   }
 
   return (

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -125,6 +126,13 @@ func (s *Server) registerRoutes() {
 	// Start Binance price cache for real crypto prices
 	handlers.InitPriceCache()
 
+	// Wallet registry
+	dataDir := os.Getenv("SPC_DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	handlers.InitWalletRegistry(dataDir)
+
 	mux := s.router
 
 	mux.HandleFunc("/api/status", handlers.HandleStatus(nodeClient))
@@ -138,6 +146,8 @@ func (s *Server) registerRoutes() {
 	mux.HandleFunc("/api/market/history", handlers.HandlePriceHistory(nodeClient, sim))
 	mux.HandleFunc("/api/market/ticker", handlers.HandleTicker(nodeClient, sim))
 	mux.HandleFunc("/api/market/table", handlers.HandleMarketTable(nodeClient, sim))
+	mux.HandleFunc("/api/wallets/register", handlers.HandleRegisterWallet())
+	mux.HandleFunc("/api/wallets/count", handlers.HandleWalletCount())
 	mux.HandleFunc("/health", handleHealth)
 
 	// Auth routes

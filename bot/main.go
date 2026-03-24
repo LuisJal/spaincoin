@@ -389,6 +389,21 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 		} else {
 			handleStart(client, chatID, userName)
 		}
+	case strings.HasPrefix(text, "/start buy_SPC"):
+		// Auto-register wallet from onboarding link
+		addr := strings.TrimPrefix(text, "/start buy_")
+		if len(addr) == 43 && strings.HasPrefix(addr, "SPC") {
+			key := fmt.Sprintf("wallet_%d", chatID)
+			orderDB.SetAdminValue(key, addr)
+			registerWalletAPI(client, addr)
+			log.Printf("[AUTO-REG] %s → %s", userName, addr)
+			for id := range adminIDs {
+				sendMessage(client, id, fmt.Sprintf("📝 Auto-registro desde web: %s → <code>%s</code>", userName, addr))
+			}
+		}
+		handleStart(client, chatID, userName)
+	case strings.HasPrefix(text, "/start"):
+		handleStart(client, chatID, userName)
 	case text == "/precio" || text == "/price":
 		handlePrecio(client, chatID) // precio es público, se puede ver en grupo
 	case strings.HasPrefix(text, "/comprar"):
@@ -475,7 +490,8 @@ La primera blockchain española
 
 func handlePrecio(client *http.Client, chatID int64) {
 	price := getCurrentPrice()
-	totalSPC, totalEUR, count, _ := orderDB.GetStats()
+	totalSPC, _, count, _ := orderDB.GetStats()
+	walletCount := getWalletCount(client)
 
 	nextPrice := getNextPrice()
 	nextTierInfo := ""
@@ -487,15 +503,22 @@ func handlePrecio(client *http.Client, chatID int64) {
 		}
 	}
 
+	walletLine := ""
+	if walletCount > 0 {
+		walletLine = fmt.Sprintf("\n🇪🇸 Comunidad: %d wallets", walletCount)
+	}
+
 	msg := fmt.Sprintf(`💰 <b>SpainCoin ($SPC)</b>
 
 Precio: <b>%.4f€</b>
 Vendidos: %.2f SPC
-Recaudado: %.2f€
-Operaciones: %d%s
+Operaciones: %d%s%s
 
-🌐 spaincoin.es`, price, totalSPC, totalEUR, count, nextTierInfo)
-	sendMessage(client, chatID, msg)
+🌐 spaincoin.es`, price, totalSPC, count, walletLine, nextTierInfo)
+	sendMessageWithButtons(client, chatID, msg, [][]InlineButton{
+		{{Text: "💶 Comprar", Data: "comprar"}, {Text: "💰 Vender", Data: "vender"}},
+		{{Text: "← Menú", Data: "menu"}},
+	})
 }
 
 func getNextPrice() float64 {
@@ -681,15 +704,16 @@ Cuando verifiquemos la recepción, te haremos transferencia de %.2f€.`, order.
 func handleRegistro(client *http.Client, chatID int64, userName, text string) {
 	parts := strings.Fields(text)
 	if len(parts) < 2 || !strings.HasPrefix(parts[1], "SPC") || len(parts[1]) != 43 {
-		sendMessage(client, chatID, `📝 <b>Registra tu wallet</b>
+		sendMessageWithButtons(client, chatID, `📝 <b>Registra tu wallet</b>
 
 Escribe /registro seguido de tu dirección SPC:
 
 <code>/registro SPCtu_direccion_aqui</code>
 
-Así no tendrás que pegarla cada vez que compres.
-
-¿No tienes wallet? → /miwallet`)
+Así no tendrás que pegarla cada vez que compres.`, [][]InlineButton{
+			{{Text: "🔐 No tengo wallet → Crear una", URL: "https://spaincoin.es/#/wallet"}},
+			{{Text: "← Menú", Data: "menu"}},
+		})
 		return
 	}
 
@@ -697,19 +721,54 @@ Así no tendrás que pegarla cada vez que compres.
 	key := fmt.Sprintf("wallet_%d", chatID)
 	orderDB.SetAdminValue(key, addr)
 
-	sendMessage(client, chatID, fmt.Sprintf(`✅ <b>Wallet registrada</b>
+	// Register in exchange API for wallet counter
+	registerWalletAPI(client, addr)
 
-📬 <code>%s</code>
+	count := getWalletCount(client)
+	countMsg := ""
+	if count > 0 {
+		countMsg = fmt.Sprintf("\n\n🇪🇸 Ya somos <b>%d wallets</b> en SpainCoin", count)
+	}
 
-Ahora puedes comprar directamente:
-<code>/comprar 50</code>
+	sendMessageWithButtons(client, chatID, fmt.Sprintf(`✅ <b>Wallet registrada</b>
 
-No necesitas pegar tu dirección cada vez.`, addr))
+📬 <code>%s</code>%s`, addr, countMsg), [][]InlineButton{
+		{{Text: "💶 Comprar SPC", Data: "comprar"}},
+		{{Text: "← Menú", Data: "menu"}},
+	})
 
 	// Notify admins
 	for id := range adminIDs {
 		sendMessage(client, id, fmt.Sprintf("📝 Nuevo registro: %s → <code>%s</code>", userName, addr))
 	}
+}
+
+// registerWalletAPI calls the exchange API to register a wallet for the counter.
+func registerWalletAPI(client *http.Client, addr string) {
+	apiURL := os.Getenv("SPC_API_URL")
+	if apiURL == "" {
+		apiURL = "http://localhost:3001"
+	}
+	body := fmt.Sprintf(`{"address":"%s"}`, addr)
+	http.Post(apiURL+"/api/wallets/register", "application/json", strings.NewReader(body))
+}
+
+// getWalletCount fetches the current wallet count from the exchange API.
+func getWalletCount(client *http.Client) int {
+	apiURL := os.Getenv("SPC_API_URL")
+	if apiURL == "" {
+		apiURL = "http://localhost:3001"
+	}
+	resp, err := client.Get(apiURL + "/api/wallets/count")
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Total int `json:"total"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result.Total
 }
 
 func handleComoComprar(client *http.Client, chatID int64) {

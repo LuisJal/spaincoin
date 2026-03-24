@@ -11,6 +11,7 @@ import (
 var (
 	bucketOrders  = []byte("orders")
 	bucketAdminKV = []byte("admin_kv")
+	bucketWallets = []byte("wallets")
 )
 
 // OrderStatus represents the state of a buy/sell order.
@@ -49,6 +50,9 @@ func NewOrderDB(db *bbolt.DB) (*OrderDB, error) {
 			return err
 		}
 		if _, err := tx.CreateBucketIfNotExists(bucketAdminKV); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists(bucketWallets); err != nil {
 			return err
 		}
 		return nil
@@ -216,4 +220,28 @@ func (o *OrderDB) GetStats() (totalSPC float64, totalEUR float64, count int, err
 		})
 	})
 	return
+}
+
+// RegisterWallet adds a wallet address to the registry (deduplicates).
+func (o *OrderDB) RegisterWallet(address string) error {
+	return o.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketWallets)
+		existing := b.Get([]byte(address))
+		if existing != nil {
+			return nil // already registered
+		}
+		data, _ := json.Marshal(time.Now().Unix())
+		return b.Put([]byte(address), data)
+	})
+}
+
+// WalletCount returns the total number of registered wallets.
+func (o *OrderDB) WalletCount() (int, error) {
+	var count int
+	err := o.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketWallets)
+		count = b.Stats().KeyN
+		return nil
+	})
+	return count, err
 }
