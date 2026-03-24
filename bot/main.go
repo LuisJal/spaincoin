@@ -142,12 +142,42 @@ func main() {
 
 	priceTiers = defaultTiers
 
+	// Group chat ID for daily reports (set via SPC_GROUP_CHAT_ID)
+	groupChatStr := os.Getenv("SPC_GROUP_CHAT_ID")
+	var groupChatID int64
+	if groupChatStr != "" {
+		groupChatID, _ = strconv.ParseInt(groupChatStr, 10, 64)
+	}
+
 	log.Println("SpainCoin Bot starting...")
 	log.Printf("Admins: %v", adminIDs)
-	log.Printf("Bank info: %s", bankInfo)
+	log.Printf("Group chat: %d", groupChatID)
 
 	offset := int64(0)
 	client := &http.Client{Timeout: 35 * time.Second}
+
+	// Daily report at 9:00 AM (Europe/Madrid)
+	go func() {
+		for {
+			now := time.Now()
+			// Calculate next 9:00 AM
+			next := time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, now.Location())
+			if now.After(next) {
+				next = next.Add(24 * time.Hour)
+			}
+			time.Sleep(time.Until(next))
+
+			if groupChatID != 0 {
+				sendDailyReport(client, groupChatID)
+			}
+			// Also send to admins
+			for id := range adminIDs {
+				sendDailyReport(client, id)
+			}
+
+			time.Sleep(1 * time.Minute) // avoid double-send
+		}
+	}()
 
 	for {
 		updates, err := getUpdates(client, offset)
@@ -373,10 +403,9 @@ func handleMessage(client *http.Client, msg *TelegramMessage) {
 		text = strings.Split(text, "@")[0]
 	}
 
-	// In groups: delete non-command messages (keep it clean)
-	if isGroup && !strings.HasPrefix(text, "/") && !isAdmin(msg.From.ID) {
-		deleteMessage(client, chatID, msg.MessageID)
-		return
+	// In groups: users can chat freely, bot only responds to /start
+	if isGroup && !isAdmin(msg.From.ID) && !strings.HasPrefix(text, "/") {
+		return // ignore non-command messages, don't delete (let people chat)
 	}
 
 	switch {
@@ -1062,4 +1091,39 @@ func handleShowTiers(client *http.Client, chatID int64) {
 	}
 	msg += fmt.Sprintf("\nVendidos: %.2f SPC", totalSPC)
 	sendMessage(client, chatID, msg)
+}
+
+// sendDailyReport sends the daily status to a chat.
+func sendDailyReport(client *http.Client, chatID int64) {
+	price := getCurrentPrice()
+	totalSPC, totalEUR, count, _ := orderDB.GetStats()
+	walletCount := getWalletCount(client)
+
+	nextTierInfo := ""
+	for _, t := range priceTiers {
+		if totalSPC < t.SoldUpTo {
+			remaining := t.SoldUpTo - totalSPC
+			nextTierInfo = fmt.Sprintf("\n⏰ Faltan %.0f SPC para subir de precio", remaining)
+			break
+		}
+	}
+
+	msg := fmt.Sprintf(`🐂 <b>Buenos días SpainCoin 🇪🇸</b>
+
+💰 Precio: <b>%.4f€</b> por SPC
+📈 SPC vendidos: %.2f
+💶 Recaudado: %.2f€
+🔄 Operaciones: %d
+🇪🇸 Comunidad: <b>%d wallets</b>%s
+
+¿Todavía no tienes SPC? Los primeros en comprar son los que más ganan.
+
+🌐 spaincoin.es`, price, totalSPC, totalEUR, count, walletCount, nextTierInfo)
+
+	sendMessageWithButtons(client, chatID, msg, [][]InlineButton{
+		{{Text: "🐂 Comprar SPC", URL: "https://t.me/spaincoin_bot?start=go"}},
+		{{Text: "🌐 Web", URL: "https://spaincoin.es"}},
+	})
+
+	log.Printf("[DAILY] Report sent to chat %d", chatID)
 }
